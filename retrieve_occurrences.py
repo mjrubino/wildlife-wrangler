@@ -42,15 +42,13 @@ import pprint
 import json
 import platform
 
-print(platform.system())
 if platform.system() == 'Windows':
     os.environ['PATH'] = os.environ['PATH'] + ';' + 'C:/Spatialite'
-print(os.environ['PATH'])
 
 if platform.system() == 'Darwin':  # DOES THIS NEED TO BE RUN BEFORE EVERY CONNECTION?????????????????
     os.putenv('SPATIALITE_SECURITY', 'relaxed')
 if platform.system() == 'Windows':  # DOES THIS NEED TO BE RUN BEFORE EVERY CONNECTION?????????????????
-    os.putenv('SPATIALITE', 'relaxed')
+    os.environ['SPATIALITE_SECURITY'] = 'relaxed'  #####  NOT WORKING !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
        
 #############################################################################
 #                              Species-concept
@@ -82,21 +80,18 @@ try:
     conn3 = sqlite3.connect(':memory:')
     conn3.enable_load_extension(True)
     cursor3 = conn3.cursor()
+
+    try:
+        cursor3.execute("SELECT load_extension('mod_spatialite');")
+    except Exception as e:
+        print(e)
     
+    try:
+        cursor3.execute("SELECT InitSpatialMetadata(1);")
+    except Exception as e:
+        print(e)
+        
     sql_repro = """
-    SELECT load_extension('mod_spatialite');
-
-    SELECT InitSpatialMetadata(1);
-    """
-    cursor3.executescript(sql_repro)
-    
-    if platform.system() == 'Darwin':  # DOES THIS NEED TO BE RUN BEFORE EVERY CONNECTION?????????????????
-        os.putenv('SPATIALITE_SECURITY', 'relaxed')
-    if platform.system() == 'Windows':  # DOES THIS NEED TO BE RUN BEFORE EVERY CONNECTION?????????????????
-        os.putenv('SPATIALITE', 'relaxed')
-    
-    sql_repro2 = """
-
     SELECT ImportSHP('{0}{1}_conus_range_2001v1', 'rng3', 'utf-8', 5070,
                      'geom_5070', 'HUC12RNG', 'MULTIPOLYGON');
 
@@ -108,11 +103,12 @@ try:
     SELECT ExportSHP('rng2', 'geom_4326', '{0}{1}_range_4326', 'utf-8');
     """.format(config.inDir, gap_id)
 
-    cursor3.executescript(sql_repro2)
+    cursor3.executescript(sql_repro)
     conn3.close()
     del cursor3
 
     gap_range2 = "{0}{1}_range_4326".format(config.inDir, gap_id)
+
 except Exception as e:
     print("No GAP range was retrieved.")
     print(e)
