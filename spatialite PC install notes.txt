@@ -1,0 +1,17 @@
+1.	Download “mod_spatialite-4.3.0a-win-amd64.7z” from http://www.gaia-gis.it/gaia-sins/windows-bin-amd64/ .
+2.	Unzip the file to C:/
+3. 	Optional: rename to "C:/Spatialite"
+For command line interface, double click “sqlite3.exe”, which is stored in C:/Spatialite
+
+For use in python coding, you have to 
+
+import sqlite3
+import os
+con = sqlite3.connect(":memory:") # Or substitute a path to a db on drive for ":memory:"
+cur = con.cursor()
+con.enable_load_extension(True)
+splpath = 'C:\\Spatialite’
+os.environ['PATH'] = splpath + ';' + os.environ['PATH']
+con.execute("select load_extension('mod_spatialite')")
+#con.load_extension('mod_spatialite') # This is another option instead of the previous line
+ 

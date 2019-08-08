@@ -1,10 +1,10 @@
 #NOTE! this is overwritten by some notebooks, so update everywhere, if adding lines.
 sp_id = 'acytrx0'
 summary_name = 'canyon'
-gbif_req_id = 'GBIFr14'
+gbif_req_id = 'GBIFr15'
 gbif_filter_id = 'GBIFf4'
-workDir = '/Users/nmtarr/Documents/Occurrences/'
-codeDir = '/Users/nmtarr/Code/occurrence-record-wrangler/'
+workDir = 'T:/Occurrence_Records/'
+codeDir = 'T:/Scripts/occurrence-record-wrangler/'
 inDir = workDir + 'Inputs/'
 outDir = workDir + 'Outputs/'
 default_coordUncertainty = 500

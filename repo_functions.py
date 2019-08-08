@@ -135,3 +135,15 @@ def download_GAP_range_CONUS2001v1(gap_id, toDir):
 
     # Return path to range file without extension
     return rng_zip.replace('.zip', '')
+
+
+def getGBIFcode(name, rank='species'):
+    """
+    Returns the GBIF species code for a scientific name.
+    
+    Example: gbifcode = getGBIFcode(name = "Dendroica ceruleans")
+    """
+    from pygbif import species
+    key = species.name_backbone(name = name, rank='species')['usageKey']
+    return key
+
