@@ -1,15 +1,34 @@
-"""
-Retrieves GAP range from ScienceBase and occurrence records from APIs. Filters
-occurrence records, stores them in a database, buffers the xy points,
-and filtering occurrence records, saving them in a database.  Finally, exports
-some maps.
+'''
+def retrieve_gbif_occurrences(codeDir, sp_id, inDir, spdb, gbif_req_id, 
+                              gbif_filter_id, default_coordUncertainty, SRID_dict, 
+                              outDir, summary_name):
+    """
+    Retrieves GAP range from ScienceBase and occurrence records from APIs. Filters
+    occurrence records, stores them in a database, buffers the xy points,
+    and filtering occurrence records, saving them in a database.  Finally, exports
+    some maps.
 
-To do:
-1.  Maximize filtering.
-2.  Can we use EPSG:5070?
-4.  Account for possiblity of non-4326 occurrence records in gbif? Solution
-    would be to transform before entering into database.
-"""
+    To do:
+    1.  Maximize filtering.
+    2.  Can we use EPSG:5070?
+    3.  Account for possiblity of non-4326 occurrence records in gbif? Solution
+        would be to transform before entering into database.
+    4. Make platform flexible
+
+    Arguments:
+    codeDir -- directory of this code repo.
+    sp_id -- project id for the species concept.
+    inDir -- directory containing key inputs such as downloaded gap ranges.
+    spdb -- occurrence record database to be created by this function.
+    gbif_req_id -- GBIF request ID for the process.
+    gbif_filter_id -- GBIF filter ID for the process.
+    default_coordUncertainty -- distance in meters to use if no coordinate 
+        Uncertainty is specified for a record.
+    SRID_dict -- a dictionary of spatial reference name-code pairs.
+    outDir -- where to save maps that are exported by this process.
+    summary_name -- a short name for some file names.  
+    """
+'''
 import pandas as pd
 pd.set_option('display.width', 1000)
 import sqlite3
@@ -21,8 +40,18 @@ import config
 import repo_functions as functions
 import pprint
 import json
+import platform
 
+print(platform.system())
+if platform.system() == 'Windows':
+    os.environ['PATH'] = os.environ['PATH'] + ';' + 'C:/Spatialite'
+print(os.environ['PATH'])
 
+if platform.system() == 'Darwin':  # DOES THIS NEED TO BE RUN BEFORE EVERY CONNECTION?????????????????
+    os.putenv('SPATIALITE_SECURITY', 'relaxed')
+if platform.system() == 'Windows':  # DOES THIS NEED TO BE RUN BEFORE EVERY CONNECTION?????????????????
+    os.putenv('SPATIALITE', 'relaxed')
+       
 #############################################################################
 #                              Species-concept
 #############################################################################
@@ -49,14 +78,24 @@ try:
     gap_range = functions.download_GAP_range_CONUS2001v1(gap_id, config.inDir)
 
     # Reproject the GAP range to WGS84 for displaying
+      
     conn3 = sqlite3.connect(':memory:')
-    os.putenv('SPATIALITE_SECURITY', 'relaxed')
     conn3.enable_load_extension(True)
     cursor3 = conn3.cursor()
+    
     sql_repro = """
     SELECT load_extension('mod_spatialite');
 
-    SELECT InitSpatialMetadata();
+    SELECT InitSpatialMetadata(1);
+    """
+    cursor3.executescript(sql_repro)
+    
+    if platform.system() == 'Darwin':  # DOES THIS NEED TO BE RUN BEFORE EVERY CONNECTION?????????????????
+        os.putenv('SPATIALITE_SECURITY', 'relaxed')
+    if platform.system() == 'Windows':  # DOES THIS NEED TO BE RUN BEFORE EVERY CONNECTION?????????????????
+        os.putenv('SPATIALITE', 'relaxed')
+    
+    sql_repro2 = """
 
     SELECT ImportSHP('{0}{1}_conus_range_2001v1', 'rng3', 'utf-8', 5070,
                      'geom_5070', 'HUC12RNG', 'MULTIPOLYGON');
@@ -69,13 +108,14 @@ try:
     SELECT ExportSHP('rng2', 'geom_4326', '{0}{1}_range_4326', 'utf-8');
     """.format(config.inDir, gap_id)
 
-    cursor3.executescript(sql_repro)
+    cursor3.executescript(sql_repro2)
     conn3.close()
     del cursor3
 
     gap_range2 = "{0}{1}_range_4326".format(config.inDir, gap_id)
-except:
+except Exception as e:
     print("No GAP range was retrieved.")
+    print(e)
 
 #############################################################################
 #                           Create Occurrence Database
@@ -89,33 +129,33 @@ spdb = config.spdb
 if os.path.exists(spdb):
     os.remove(spdb)
 
+print(spdb)
 # Create or connect to the database
 conn = sqlite3.connect(spdb)
-os.putenv('SPATIALITE_SECURITY', 'relaxed')
 conn.enable_load_extension(True)
 conn.execute('SELECT load_extension("mod_spatialite")')
 cursor = conn.cursor()
 
 # Make database spatial and add the spatial reference system that GAP used
-conn.executescript('''SELECT InitSpatialMetaData();
+conn.executescript('''SELECT InitSpatialMetaData(1);
 
-                 INSERT into spatial_ref_sys
-                 (srid, auth_name, auth_srid, proj4text, srtext)
-                 values (102008, 'ESRI', 102008, '+proj=aea +lat_1=20 +lat_2=60
-                 +lat_0=40 +lon_0=-96 +x_0=0 +y_0=0 +datum=NAD83 +units=m
-                 +no_defs ', 'PROJCS["North_America_Albers_Equal_Area_Conic",
-                 GEOGCS["GCS_North_American_1983",
-                 DATUM["North_American_Datum_1983",
-                 SPHEROID["GRS_1980",6378137,298.257222101]],
-                 PRIMEM["Greenwich",0],UNIT["Degree",0.017453292519943295]],
-                 PROJECTION["Albers_Conic_Equal_Area"],
-                 PARAMETER["False_Easting",0],
-                 PARAMETER["False_Northing",0],
-                 PARAMETER["longitude_of_center",-96],
-                 PARAMETER["Standard_Parallel_1",20],
-                 PARAMETER["Standard_Parallel_2",60],
-                 PARAMETER["latitude_of_center",40],
-                 UNIT["Meter",1],AUTHORITY["EPSG","102008"]]');''')
+                     INSERT into spatial_ref_sys
+                     (srid, auth_name, auth_srid, proj4text, srtext)
+                     values (102008, 'ESRI', 102008, '+proj=aea +lat_1=20 +lat_2=60
+                     +lat_0=40 +lon_0=-96 +x_0=0 +y_0=0 +datum=NAD83 +units=m
+                     +no_defs ', 'PROJCS["North_America_Albers_Equal_Area_Conic",
+                     GEOGCS["GCS_North_American_1983",
+                     DATUM["North_American_Datum_1983",
+                     SPHEROID["GRS_1980",6378137,298.257222101]],
+                     PRIMEM["Greenwich",0],UNIT["Degree",0.017453292519943295]],
+                     PROJECTION["Albers_Conic_Equal_Area"],
+                     PARAMETER["False_Easting",0],
+                     PARAMETER["False_Northing",0],
+                     PARAMETER["longitude_of_center",-96],
+                     PARAMETER["Standard_Parallel_1",20],
+                     PARAMETER["Standard_Parallel_2",60],
+                     PARAMETER["latitude_of_center",40],
+                     UNIT["Meter",1],AUTHORITY["EPSG","102008"]]');''')
 conn.commit()
 
 
@@ -697,7 +737,7 @@ print("\nRecords saved in {0}".format(config.spdb))
 # wgs84 version will be used in plotting with Basemap.  Buffer radius is
 # the sum of detectiondistance from requests.species_concepts and
 # coordinate uncertainty in meters here.
-requestsDB = config.inDir + 'requests.sqlite'
+requestsDB = config.inDir + 'requests.sqlite'  #####???????????????????????????????????????
 sql_det = """
         ATTACH DATABASE '{0}' AS requests;
 

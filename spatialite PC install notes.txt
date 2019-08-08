@@ -5,13 +5,27 @@ For command line interface, double click “sqlite3.exe”, which is stored in C:/Sp
 
 For use in python coding, you have to 
 
+#########################
 import sqlite3
 import os
+
+spltpth = 'C:/Spatialite'
+os.environ['PATH'] = os.environ['PATH']+ ';' + spltpath
+
 con = sqlite3.connect(":memory:") # Or substitute a path to a db on drive for ":memory:"
 cur = con.cursor()
+
 con.enable_load_extension(True)
-splpath = 'C:\\Spatialite’
-os.environ['PATH'] = splpath + ';' + os.environ['PATH']
 con.execute("select load_extension('mod_spatialite')")
 #con.load_extension('mod_spatialite') # This is another option instead of the previous line
- 
+########################
+
+That same code would look like this if you were not using spatialite (just sqlite):
+
+########################
+import sqlite3
+import os
+
+con = sqlite3.connect(":memory:") # Or substitute a path to a db on drive for ":memory:"
+cur = con.cursor()
+########################
