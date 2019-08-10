@@ -41,15 +41,21 @@ import repo_functions as functions
 import pprint
 import json
 import platform
-
 if platform.system() == 'Windows':
     os.environ['PATH'] = os.environ['PATH'] + ';' + 'C:/Spatialite'
+
+    
+os.putenv('SPATIALITE_SECURITY', 'relaxed')
+os.environ['SPATIALITE_SECURITY'] = 'relaxed'
+print(os.environ['SPATIALITE_SECURITY'])
 
 if platform.system() == 'Darwin':  # DOES THIS NEED TO BE RUN BEFORE EVERY CONNECTION?????????????????
     os.putenv('SPATIALITE_SECURITY', 'relaxed')
 if platform.system() == 'Windows':  # DOES THIS NEED TO BE RUN BEFORE EVERY CONNECTION?????????????????
     os.environ['SPATIALITE_SECURITY'] = 'relaxed'  #####  NOT WORKING !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-       
+
+    
+          
 #############################################################################
 #                              Species-concept
 #############################################################################
