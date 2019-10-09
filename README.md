@@ -42,7 +42,7 @@ None at this time
 Python 3 and numerous packages including sqlite3 with the spatialite extension.  An environment can be created from the ENVIRONMENT.yml file included in this repository.
 
 ## Code
-All code is included in this repository.  Runtimes of discrete tasks made grouping code into separate scripts preferable.  
+All code is included in this repository.  Runtimes of discrete tasks made grouping code into separate functions preferable.  
 
 ## Status
-Getting general framework in place and documented, with some placeholders.  Next steps are adding map legends, incorporating eBird records, and beefing up GBIF filters.
+A draft framework has been established for GBIF data.  Current work is focused on refinement and improvements for 1) creation of updated (2016) GAP known range presence maps and 2) North Carolina Bird Atlas applications.
