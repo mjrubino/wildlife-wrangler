@@ -303,48 +303,50 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     sql_twi = """ SELECT lat_range FROM gbif_requests
                   WHERE request_id = '{0}'""".format(gbif_req_id)
     latRange = cursor2.execute(sql_twi).fetchone()[0]
-
+    print(latRange)
+    print(type(latRange))
     sql_twi = """ SELECT lon_range FROM gbif_requests
                   WHERE request_id = '{0}'""".format(gbif_req_id)
     lonRange = cursor2.execute(sql_twi).fetchone()[0]
-
+    print(lonRange)
+    print(type(lonRange))
     sql_twi = """ SELECT years_range FROM gbif_requests
                   WHERE request_id = '{0}'""".format(gbif_req_id)
     years = cursor2.execute(sql_twi).fetchone()[0]
-
+    print(years)
     sql_twi = """ SELECT months_range FROM gbif_requests
                   WHERE request_id = '{0}'""".format(gbif_req_id)
     months = cursor2.execute(sql_twi).fetchone()[0]
-
+    print(months)
     sql_twi = """ SELECT geoissue FROM gbif_requests
                   WHERE request_id = '{0}'""".format(gbif_req_id)
     geoIssue = cursor2.execute(sql_twi).fetchone()[0]
     if geoIssue == 'None':
         geoIssue = None
-
+    print(geoIssue)
     sql_twi = """ SELECT coordinate FROM gbif_requests
                   WHERE request_id = '{0}'""".format(gbif_req_id)
     coordinate = cursor2.execute(sql_twi).fetchone()[0]
-
+    print(coordinate)
     sql_twi = """ SELECT continent FROM gbif_requests
                   WHERE request_id = '{0}'""".format(gbif_req_id)
     continent = cursor2.execute(sql_twi).fetchone()[0]
     if continent == "None":
         continent = None
-
+    print(continent)
     sql_twi = """ SELECT country FROM gbif_requests
                   WHERE request_id = '{0}'""".format(gbif_req_id)
     country = cursor2.execute(sql_twi).fetchone()[0]
     if country == "None":
         country = None
-
+    print(country)
     #################### REQUEST RECORDS ACCORDING TO REQUEST PARAMS
     # First, find out how many records there are that meet criteria
     occ_search = occurrences.search(gbif_id,
                                     year=years,
                                     month=months,
-                                    decimelLatitude=latRange,
-                                    decimelLongitude=lonRange,
+                                    decimalLatitude=latRange,
+                                    decimalLongitude=lonRange,
                                     hasGeospatialIssue=geoIssue,
                                     hasCoordinate=coordinate,
                                     continent=continent,
@@ -361,8 +363,8 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                                       offset=i,
                                       year=years,
                                       month=months,
-                                      decimelLatitude=latRange,
-                                      decimelLongitude=lonRange,
+                                      decimalLatitude=latRange,
+                                      decimalLongitude=lonRange,
                                       hasGeospatialIssue=geoIssue,
                                       hasCoordinate=coordinate,
                                       continent=continent,
