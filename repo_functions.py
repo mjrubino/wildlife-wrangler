@@ -116,23 +116,23 @@ def download_GAP_range_CONUS2001v1(gap_id, toDir):
 
     # Connect
     sb = sciencebasepy.SbSession()
-    
+
     # Search for gap range item in ScienceBase
     gap_id = gap_id[0] + gap_id[1:5].upper() + gap_id[5]
     item_search = '{0}_CONUS_2001v1 Range Map'.format(gap_id)
     items = sb.find_items_by_any_text(item_search)
-    
+
     # Get a public item.  No need to log in.
     rng =  items['items'][0]['id']
     item_json = sb.get_item(rng)
     get_files = sb.get_item_files(item_json, toDir)
-    
+
     # Unzip
     rng_zip = toDir + item_json['files'][0]['name']
     zip_ref = zipfile.ZipFile(rng_zip, 'r')
     zip_ref.extractall(toDir)
     zip_ref.close()
-    
+
     # Return path to range file without extension
     return rng_zip.replace('.zip', '')
 
@@ -140,7 +140,7 @@ def download_GAP_range_CONUS2001v1(gap_id, toDir):
 def getGBIFcode(name, rank='species'):
     """
     Returns the GBIF species code for a scientific name.
-    
+
     Example: gbifcode = getGBIFcode(name = "Dendroica ceruleans")
     """
     from pygbif import species
@@ -149,8 +149,8 @@ def getGBIFcode(name, rank='species'):
 
 
 
-def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id, 
-                              gbif_filter_id, default_coordUncertainty, SRID_dict, 
+def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
+                              gbif_filter_id, default_coordUncertainty, SRID_dict,
                               outDir, summary_name):
     """
     Retrieves GAP range from ScienceBase and occurrence records from APIs. Filters
@@ -172,11 +172,11 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     spdb -- occurrence record database to be created by this function.
     gbif_req_id -- GBIF request ID for the process.
     gbif_filter_id -- GBIF filter ID for the process.
-    default_coordUncertainty -- distance in meters to use if no coordinate 
+    default_coordUncertainty -- distance in meters to use if no coordinate
         Uncertainty is specified for a record.
     SRID_dict -- a dictionary of spatial reference name-code pairs.
     outDir -- where to save maps that are exported by this process.
-    summary_name -- a short name for some file names.  
+    summary_name -- a short name for some file names.
     """
 
     import pandas as pd
@@ -198,7 +198,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         #os.putenv('SPATIALITE_SECURITY', 'relaxed')
         os.environ['SPATIALITE_SECURITY'] = 'relaxed'
 
-    print(os.environ['SPATIALITE_SECURITY'])
+    print("SPATIALITE_SECURITY set to " + os.environ['SPATIALITE_SECURITY'])
 
 
 
@@ -220,50 +220,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     det_dist = concept[3]
     gap_id = concept[4]
 
-
-    #############################################################################
-    #                      GAP Range Data From ScienceBase
-    #############################################################################
-    try:
-        gap_range = download_GAP_range_CONUS2001v1(gap_id, inDir)
-
-        # Reproject the GAP range to WGS84 for displaying
-
-        conn3 = sqlite3.connect(':memory:')
-        conn3.enable_load_extension(True)
-        cursor3 = conn3.cursor()
-
-        try:
-            cursor3.execute("SELECT load_extension('mod_spatialite');")
-        except Exception as e:
-            print(e)
-
-        try:
-            cursor3.execute("SELECT InitSpatialMetadata(1);")
-        except Exception as e:
-            print(e)
-
-        sql_repro = """
-        SELECT ImportSHP('{0}{1}_conus_range_2001v1', 'rng3', 'utf-8', 5070,
-                         'geom_5070', 'HUC12RNG', 'MULTIPOLYGON');
-
-        CREATE TABLE rng2 AS SELECT HUC12RNG, seasonCode, seasonName,
-                                    Transform(geom_5070, 4326) AS geom_4326 FROM rng3;
-
-        SELECT RecoverGeometryColumn('rng2', 'geom_4326', 4326, 'MULTIPOLYGON', 'XY');
-
-        SELECT ExportSHP('rng2', 'geom_4326', '{0}{1}_range_4326', 'utf-8');
-        """.format(inDir, gap_id)
-
-        cursor3.executescript(sql_repro)
-        conn3.close()
-        del cursor3
-
-        gap_range2 = "{0}{1}_range_4326".format(inDir, gap_id)
-
-    except Exception as e:
-        print("No GAP range was retrieved.")
-        print(e)
 
     #############################################################################
     #                           Create Occurrence Database
