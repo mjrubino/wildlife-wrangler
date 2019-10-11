@@ -332,6 +332,12 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     if continent == "None":
         continent = None
 
+    sql_twi = """ SELECT country FROM gbif_requests
+                  WHERE request_id = '{0}'""".format(gbif_req_id)
+    country = cursor2.execute(sql_twi).fetchone()[0]
+    if country == "None":
+        country = None
+
     #################### REQUEST RECORDS ACCORDING TO REQUEST PARAMS
     # First, find out how many records there are that meet criteria
     occ_search = occurrences.search(gbif_id,
@@ -341,7 +347,8 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                                     decimelLongitude=lonRange,
                                     hasGeospatialIssue=geoIssue,
                                     hasCoordinate=coordinate,
-                                    continent=continent)
+                                    continent=continent,
+                                    country=country)
     occ_count=occ_search['count']
     print('\n{0} records exist with the request parameters'.format(occ_count))
 
@@ -358,7 +365,8 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                                       decimelLongitude=lonRange,
                                       hasGeospatialIssue=geoIssue,
                                       hasCoordinate=coordinate,
-                                      continent=continent)
+                                      continent=continent,
+                                      country=country)
         occs = occ_json['results']
         alloccs = alloccs + occs
 
