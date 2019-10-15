@@ -334,6 +334,10 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     if continent == "None":
         continent = None
     print(continent)
+    sql_poly = """ SELECT geometry FROM gbif_requests
+                  WHERE request_id = '{0}'""".format(gbif_req_id)
+    poly = cursor2.execute(sql_poly).fetchone()[0]
+    print(poly)
     sql_twi = """ SELECT country FROM gbif_requests
                   WHERE request_id = '{0}'""".format(gbif_req_id)
     country = cursor2.execute(sql_twi).fetchone()[0]
@@ -350,7 +354,8 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                                     hasGeospatialIssue=geoIssue,
                                     hasCoordinate=coordinate,
                                     continent=continent,
-                                    country=country)
+                                    country=country,
+                                    geometry=poly)
     occ_count=occ_search['count']
     print('\n{0} records exist with the request parameters'.format(occ_count))
 
@@ -368,7 +373,8 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                                       hasGeospatialIssue=geoIssue,
                                       hasCoordinate=coordinate,
                                       continent=continent,
-                                      country=country)
+                                      country=country,
+                                      geometry=poly)
         occs = occ_json['results']
         alloccs = alloccs + occs
 
