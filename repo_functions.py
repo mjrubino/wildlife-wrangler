@@ -188,6 +188,9 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     os.chdir('/')
     import json
     import platform
+    import shapely
+    from shapely.wkt import dumps, loads
+
 
     # Environment variables need to be handled
     if platform.system() == 'Windows':
@@ -210,7 +213,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     conn2 = sqlite3.connect(codeDir + 'parameters.sqlite')
     cursor2 = conn2.cursor()
     sql_tax = """SELECT gbif_id, common_name, scientific_name,
-                        detection_distance_meters, gap_id
+                        detection_distance_meters, gap_id, geometry
                  FROM species_concepts
                  WHERE species_id = '{0}';""".format(species_id)
     concept = cursor2.execute(sql_tax).fetchall()[0]
@@ -219,6 +222,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     scientific_name = concept[2]
     det_dist = concept[3]
     gap_id = concept[4]
+    sp_geom =concept[5]
 
 
     #############################################################################
@@ -303,47 +307,60 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     sql_twi = """ SELECT lat_range FROM gbif_requests
                   WHERE request_id = '{0}'""".format(gbif_req_id)
     latRange = cursor2.execute(sql_twi).fetchone()[0]
-    print(latRange)
-    print(type(latRange))
+
     sql_twi = """ SELECT lon_range FROM gbif_requests
                   WHERE request_id = '{0}'""".format(gbif_req_id)
     lonRange = cursor2.execute(sql_twi).fetchone()[0]
-    print(lonRange)
-    print(type(lonRange))
+
     sql_twi = """ SELECT years_range FROM gbif_requests
                   WHERE request_id = '{0}'""".format(gbif_req_id)
     years = cursor2.execute(sql_twi).fetchone()[0]
-    print(years)
+
     sql_twi = """ SELECT months_range FROM gbif_requests
                   WHERE request_id = '{0}'""".format(gbif_req_id)
     months = cursor2.execute(sql_twi).fetchone()[0]
-    print(months)
+
     sql_twi = """ SELECT geoissue FROM gbif_requests
                   WHERE request_id = '{0}'""".format(gbif_req_id)
     geoIssue = cursor2.execute(sql_twi).fetchone()[0]
     if geoIssue == 'None':
         geoIssue = None
-    print(geoIssue)
+
     sql_twi = """ SELECT coordinate FROM gbif_requests
                   WHERE request_id = '{0}'""".format(gbif_req_id)
     coordinate = cursor2.execute(sql_twi).fetchone()[0]
-    print(coordinate)
+
     sql_twi = """ SELECT continent FROM gbif_requests
                   WHERE request_id = '{0}'""".format(gbif_req_id)
     continent = cursor2.execute(sql_twi).fetchone()[0]
     if continent == "None":
         continent = None
-    print(continent)
-    sql_poly = """ SELECT geometry FROM gbif_requests
-                  WHERE request_id = '{0}'""".format(gbif_req_id)
-    poly = cursor2.execute(sql_poly).fetchone()[0]
-    print(poly)
+
     sql_twi = """ SELECT country FROM gbif_requests
                   WHERE request_id = '{0}'""".format(gbif_req_id)
     country = cursor2.execute(sql_twi).fetchone()[0]
     if country == "None":
         country = None
-    print(country)
+
+    ########### SORT OUT GEOMETRY FILTERS
+    # Get the geometry from the request filter set
+    sql_poly = """ SELECT geometry FROM gbif_requests
+                  WHERE request_id = '{0}'""".format(gbif_req_id)
+    poly0 = cursor2.execute(sql_poly).fetchone()[0]
+    # A geometry could also be stated for the species, assess what to do
+    if poly0 == None and sp_geom == None:
+        poly = None
+    elif poly0 != None and sp_geom == None:
+        poly = poly0
+    elif poly0 == None and sp_geom != None:
+        poly = sp_geom
+    elif poly0 != None and sp_geom != None:
+        # Get/use the intersection of the two polygons
+        filter_polygon = shapely.wkt.loads(poly0)
+        sp_polygon = shapely.wkt.loads(sp_geom)
+        poly_intersection = filter_polygon.intersection(sp_polygon)
+        poly = shapely.wkt.dumps(poly_intersection)
+
     #################### REQUEST RECORDS ACCORDING TO REQUEST PARAMS
     # First, find out how many records there are that meet criteria
     occ_search = occurrences.search(gbif_id,
