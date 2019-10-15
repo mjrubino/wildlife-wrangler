@@ -1,3 +1,19 @@
+shapefile = '/Users/nmtarr/Temp/geomtest.shp'
+out_txt = '/Users/nmtarr/Temp/wkt.txt'
+#def ccw_wkt_from_shp(shapefile, out_txt):
+"""
+(str, str) = text written to shpefile
+
+Creates wkt with coordinates oriented counter clockwise for a given shapefile.
+Shapefiles are oriented clockwise, which is incompatible with spatial queries
+in many database management systems.  Use this to generate wkt that you can
+copy and paste into queries.
+
+Arguments:
+shapefile -- path to the shpefile to read.
+out_txt -- path to the text file to write the wkt to.
+"""
+
 import fiona
 import shapely
 from shapely.geometry import shape, Polygon, LinearRing
@@ -5,7 +21,7 @@ from shapely.geometry import shape, Polygon, LinearRing
 
 # Read in a shapefile of polygon of interest.  It must be in CRS 4326
 # First get a fiona collection
-c = fiona.open('/Users/nmtarr/Temp/geomtest.shp', 'r')
+c = fiona.open(shapefile, 'r')
 
 # Next make it a shapely polygon object
 poly = shape(c[0]['geometry'])
@@ -28,7 +44,7 @@ else:
 
 # Write WKT to text file
 print(wkt)
-with open('/Users/nmtarr/Temp/wkt.txt', 'w') as file:
+with open(out_txt, 'w') as file:
     file.write(wkt)
 
 # close the collections
