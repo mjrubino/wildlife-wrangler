@@ -949,31 +949,33 @@ def ccw_wkt_from_shp(shapefile, out_txt):
     # First get a fiona collection
     c = fiona.open(shapefile, 'r')
 
-    # Next make it a shapely polygon object
-    poly = shape(c[0]['geometry'])
+    if c.crs['init'] == 'epsg:4326':
+        # Next make it a shapely polygon object
+        poly = shape(c[0]['geometry'])
 
-    # Use LinearRing to determine if coordinates are listed clockwise
-    coords = c[0]["geometry"]["coordinates"][0]
-    lr = LinearRing(coords)
-    if lr.is_ccw == False:
-        # Reverse coordinates to make them counter clockwise
-        print("Points were clockwise")
-        #coords.reverse()
-        # Make the polygon's outer ring counter clockwise
-        poly2 = shapely.geometry.polygon.orient(poly, sign=1.0)
-        # Get the well-known text version of the polygon
-        wkt = poly2.wkt
+        # Use LinearRing to determine if coordinates are listed clockwise
+        coords = c[0]["geometry"]["coordinates"][0]
+        lr = LinearRing(coords)
+        if lr.is_ccw == False:
+            # Reverse coordinates to make them counter clockwise
+            print("Points were clockwise......reversing")
+            #coords.reverse()
+            # Make the polygon's outer ring counter clockwise
+            poly2 = shapely.geometry.polygon.orient(poly, sign=1.0)
+            # Get the well-known text version of the polygon
+            wkt = poly2.wkt
+        else:
+            print("Points were already counter clockwise")
+            # Get the well-known text version of the polygon
+            wkt = poly.wkt
+
+        # Write WKT to text file
+        with open(out_txt, 'w+') as file:
+            file.write(wkt)
+            print("WKT written to {0}".format(out_txt))
+
+        # close the collections
+        c.close()
     else:
-        print("Points were already counter clockwise")
-        # Get the well-known text version of the polygon
-        wkt = poly.wkt
-
-    # Write WKT to text file
-    with open(out_txt, 'w') as file:
-        file.write(wkt)
-    print("WKT written to {0}".format(out_txt))
-
-    # close the collections
-    c.close()
-
+        print("You need to reproject the shapefile to EPSG:4326")
     return
