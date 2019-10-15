@@ -5,7 +5,7 @@ from shapely.geometry import shape, Polygon, LinearRing
 
 # Read in a shapefile of polygon of interest.  It must be in CRS 4326
 # First get a fiona collection
-c = fiona.open('/Users/nmtarr/Temp/nc_buff10km_4326.shp', 'r')
+c = fiona.open('/Users/nmtarr/Temp/geomtest.shp', 'r')
 
 # Next make it a shapely polygon object
 poly = shape(c[0]['geometry'])
