@@ -608,7 +608,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         if 'dataGeneralizations' not in x.keys():
             x['dataGeneralizations'] = ""
 
-
     # HAS COORDINATE UNCERTAINTY
     sql_green = """SELECT has_coordinate_uncertainty FROM gbif_filters
                    WHERE filter_id = '{0}';""".format(gbif_filter_id)
@@ -717,15 +716,18 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     sql_issues = """SELECT issues_omit FROM gbif_filters
                    WHERE filter_id = '{0}';""".format(gbif_filter_id)
     filt_issues = cursor2.execute(sql_issues).fetchone()[0]
+
     if type(filt_issues) == str:
         filt_issues = list(filt_issues.split(', '))
     else:
         filt_issues = []
+    print(filt_issues)
 
     alloccs9 = []
-    for x in alloccs8:
-        if x['issues'] not in filt_issues:
+    for x in alloccs8: # If none of list items are in issues omit list
+        if len(set(x['issues']) & set(filt_issues)) == 0:
             alloccs9.append(x)
+            print(x['issues'])
         elif 'issues' not in x.keys():
             alloccs9.append(x)
         else:
@@ -769,7 +771,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
             summary2['datums'] = summary2['datums'] + occdict['geodeticDatum']
         # issues
         summary2['issues'] = summary2['issues'] | set(occdict['issues'])
-        # basis or record
+        # basis of record
         BOR = occdict['basisOfRecord']
         if BOR == "" or BOR == None:
             summary2['bases'] = summary2['bases'] + ["UNKNOWN"]
