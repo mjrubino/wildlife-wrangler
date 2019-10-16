@@ -734,7 +734,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
             pass
     del alloccs8
 
-
     # SAMPLING PROTOCOL
     sql_sampling = """SELECT sampling_protocols_omit FROM gbif_filters
                    WHERE filter_id = '{0}';""".format(gbif_filter_id)
