@@ -239,7 +239,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     if os.path.exists(spdb):
         os.remove(spdb)
 
-    print(spdb)
     # Create or connect to the database
     conn = sqlite3.connect(spdb)
     conn.enable_load_extension(True)
@@ -279,6 +278,8 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                     source TEXT NOT NULL,
                     request_id TEXT NOT NULL,
                     filter_id TEXT NOT NULL,
+                    latitude TEXT,
+                    longitude TEXT,
                     coordinateUncertaintyInMeters INTEGER,
                     occurrenceDate TEXT,
                     retrievalDate TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -378,7 +379,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                                     country=country,
                                     geometry=poly)
     occ_count=occ_search['count']
-    print('\n{0} records exist with the request parameters'.format(occ_count))
 
     # Get occurrences in batches, saving into master list
     alloccs = []
@@ -400,8 +400,9 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         alloccs = alloccs + occs
 
     print("Downloaded records: " + str(datetime.now() - requesttime1))
+    print('\t{0} records exist with the request parameters'.format(occ_count))
 
-    ######################### CREATE SUMMARY TABLE OF KEYS/FIELDS RETURNED
+    ######################### CREATE SUMMARY TABLE OF KEYS/FIELDS RETURNED  !!!!!! SLOW PART STARTS
     requestsummarytime1 = datetime.now()
     keys = [list(x.keys()) for x in alloccs]
     keys2 = set([])
@@ -559,7 +560,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                       VALUES ("{0}", "{1}", "{2}")""".format(x,y,z)
             cursor.execute(frog)
     print("Created summary table of request results: " + str(datetime.now() - requestsummarytime1))
-
+    #                                                                     !!!!!!  SLOW PART HAS ENDED BY HERE
 
     ##################################################  FILTER MORE
     ###############################################################
@@ -730,7 +731,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         filt_issues = list(filt_issues.split(', '))
     else:
         filt_issues = []
-    print(filt_issues)
 
     alloccs9 = []
     for x in alloccs8: # If none of list items are in issues omit list
@@ -845,18 +845,21 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
             if 'coordinateUncertaintyInMeters' in x.keys() and x['coordinateUncertaintyInMeters'] > 0:
                 insert1 = []
                 insert1.append((x['gbifID'], species_id, 'gbif',
+                                x['decimalLatitude'], x['decimalLongitude'],
                                 x['coordinateUncertaintyInMeters'], x['eventDate'],
                                 gbif_req_id, gbif_filter_id,
                                 x['dataGeneralizations'], x['remarks']))
             else:
                 insert1 = []
                 insert1.append((x['gbifID'], species_id, 'gbif',
+                                x['decimalLatitude'], x['decimalLongitude'],
                                 default_coordUncertainty, x['eventDate'],
                                 gbif_req_id, gbif_filter_id,
                                 x['dataGeneralizations'], x['remarks']))
             insert1 = tuple(insert1)[0]
 
             sql1 = """INSERT INTO occurrences ('occ_id', 'species_id', 'source',
+                                               'latitude', 'longitude',
                                                'coordinateUncertaintyInMeters',
                                                'occurrenceDate', 'request_id',
                                                'filter_id', 'generalizations',
@@ -879,16 +882,44 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                 WHERE occ_id = {1};""".format(e['individualCount'], e['gbifID'])
             cursor.execute(sql2)
     conn.commit()
-    print("\nRecords saved in {0}".format(spdb))
     print("Performed post-request filtering: " + str(datetime.now() - inserttime1))
 
     ################################################  HANDLE DUPLICATES
     ###################################################################
-    duptime1 = datetime.now()
+    OKsql = """SELECT duplicates_OK FROM gbif_filters
+                   WHERE filter_id = '{0}';""".format(gbif_filter_id)
+    duplicates_OK = cursor2.execute(OKsql).fetchone()[0]
+    print(duplicates_OK)
+    if duplicates_OK == "False":
+        duptime1 = datetime.now()
+        conn3 = sqlite3.connect(spdb)
+        cursor3 = conn3.cursor()
 
+        # Get a count of duplicates to report
+        sql_dupcnt = """SELECT count(occ_id)
+                        FROM occurrences
+                        WHERE occ_id NOT IN
+                            (SELECT occ_id
+                             FROM occurrences
+                             GROUP BY latitude, longitude, occurrenceDate
+                             HAVING individualCount = max(individualCount));"""
+        dupcount = cursor3.execute(sql_dupcnt).fetchone()[0]
 
-    duptime2 = datetime.now()
-    print("Removed duplicates: " + str(duptime2 - duptime1))
+        # Delete duplicate records without the highest individualCount among duplicates.
+        sql_deldup = """DELETE
+                        FROM occurrences
+                        WHERE occ_id NOT IN
+                            (SELECT occ_id
+                             FROM occurrences
+                             GROUP BY latitude, longitude, occurrenceDate
+                             HAVING individualCount = max(individualCount));"""
+        cursor3.execute(sql_deldup)
+
+        duptime2 = datetime.now()
+        print("Removed duplicates: " + str(duptime2 - duptime1))
+        print("\t{0} duplicates were deleted".format(dupcount))
+    if duplicates_OK == "True":
+        print("DUPLICATES ON LATITUDE, LONGITUDE, DATE-TIME INCLUDED")
 
     ################################################  BUFFER POINTS
     ###############################################################
@@ -952,6 +983,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     conn2.commit()
     conn2.close()
     print("Exported maps: " + str(datetime.now() - exporttime1))
+    print("\nRecords saved in {0}".format(spdb))
 
 def ccw_wkt_from_shp(shapefile, out_txt):
     """
