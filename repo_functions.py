@@ -190,6 +190,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     import platform
     import shapely
     from shapely.wkt import dumps, loads
+    from datetime import datetime
 
 
     # Environment variables need to be handled
@@ -232,6 +233,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     Description: Create a database for storing occurrence and species-concept
     data.  Needs to have spatial querying functionality.
     """
+    makedb1 = datetime.now()
     spdb = spdb
     # Delete the database if it already exists
     if os.path.exists(spdb):
@@ -293,7 +295,8 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                                      'XY');
     """
     cursor.executescript(sql_cdb)
-
+    makedb2 = datetime.now()
+    print("Created occurrence db: " + str(makedb2 - makedb1))
 
     #############################################################################
     #                              GBIF Records
@@ -302,6 +305,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     Retrieve GBIF records for a species and save appropriate
     attributes in the occurrence db.
     """
+    requesttime1 = datetime.now()
     ############################# RETRIEVE REQUEST PARAMETERS
     # Up-front filters are an opportunity to lighten the load from the start.
     sql_twi = """ SELECT lat_range FROM gbif_requests
@@ -395,8 +399,10 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         occs = occ_json['results']
         alloccs = alloccs + occs
 
+    print("Downloaded records: " + str(datetime.now() - requesttime1))
 
     ######################### CREATE SUMMARY TABLE OF KEYS/FIELDS RETURNED
+    requestsummarytime1 = datetime.now()
     keys = [list(x.keys()) for x in alloccs]
     keys2 = set([])
     for x in keys:
@@ -552,11 +558,14 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
             frog = """INSERT INTO post_request_value_counts (attribute, value, count)
                       VALUES ("{0}", "{1}", "{2}")""".format(x,y,z)
             cursor.execute(frog)
+    print("Created summary table of request results: " + str(datetime.now() - requestsummarytime1))
+
 
     ##################################################  FILTER MORE
     ###############################################################
     # Pull out relevant attributes from occurrence dictionaries.  Filtering
     # will be performed with info from these keys.
+    filtertime1 = datetime.now()
     keykeys = ['basisOfRecord', 'individualCount', 'acceptedTaxonKey',
                'scientificName', 'acceptedScientificName','taxonomicStatus',
                'decimalLongitude', 'decimalLatitude',
@@ -727,7 +736,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     for x in alloccs8: # If none of list items are in issues omit list
         if len(set(x['issues']) & set(filt_issues)) == 0:
             alloccs9.append(x)
-            print(x['issues'])
         elif 'issues' not in x.keys():
             alloccs9.append(x)
         else:
@@ -751,8 +759,11 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         else:
             alloccsX.append(x)
     del alloccs9
+    print("Performed post-request filtering: " + str(datetime.now() - filtertime1))
+
 
     ############################# SAVE SUMMARY OF VALUES KEPT (FILTER)
+    filtersummarytime1 = datetime.now()
     summary2 = {'datums': ['WGS84'],
                'issues': set([]),
                'bases': [],
@@ -821,12 +832,14 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         stmt = """INSERT INTO record_attributes (step, field, vals)
                   VALUES ("filter", "{0}", "{1}");""".format(x, str(list(set(summary2[x]))).replace('"', ''))
         cursor.execute(stmt)
+    print("Summarized results of filtering: " + str(datetime.now() - filtersummarytime1))
 
 
     ###############################################  INSERT INTO DB
     ###############################################################
     # Insert the records   !needs to assess if coord uncertainty is present
     # and act accordingly because insert statement depends on if it's present!
+    inserttime1 = datetime.now()
     for x in alloccsX:
         try:
             if 'coordinateUncertaintyInMeters' in x.keys() and x['coordinateUncertaintyInMeters'] > 0:
@@ -867,6 +880,15 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
             cursor.execute(sql2)
     conn.commit()
     print("\nRecords saved in {0}".format(spdb))
+    print("Performed post-request filtering: " + str(datetime.now() - inserttime1))
+
+    ################################################  HANDLE DUPLICATES
+    ###################################################################
+    duptime1 = datetime.now()
+
+
+    duptime2 = datetime.now()
+    print("Removed duplicates: " + str(duptime2 - duptime1))
 
     ################################################  BUFFER POINTS
     ###############################################################
@@ -875,6 +897,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     # wgs84 version will be used in plotting with Basemap.  Buffer radius is
     # the sum of detectiondistance from requests.species_concepts and
     # coordinate uncertainty in meters here.
+    buffertime1 = datetime.now()
     requestsDB = inDir + 'requests.sqlite'  #####???????????????????????????????????????
     sql_det = """
             ATTACH DATABASE '{0}' AS requests;
@@ -909,10 +932,12 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                                          'POLYGON', 'XY');
     """
     cursor.executescript(sql_buf)
+    print("Buffered points: " + str(datetime.now() - buffertime1))
 
 
     ##################################################  EXPORT MAPS
     ###############################################################
+    exporttime1 = datetime.now()
     # Export occurrence circles as a shapefile (all seasons)
     cursor.execute("""SELECT ExportSHP('occurrences', 'circle_wgs84',
                      '{0}{1}_circles', 'utf-8');""".format(outDir,
@@ -926,6 +951,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     #conn.close()
     conn2.commit()
     conn2.close()
+    print("Exported maps: " + str(datetime.now() - exporttime1))
 
 def ccw_wkt_from_shp(shapefile, out_txt):
     """
