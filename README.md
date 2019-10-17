@@ -46,3 +46,5 @@ All code is included in this repository.  Runtimes of discrete tasks made groupi
 
 ## Status
 A draft framework has been established for GBIF data.  Current work is focused on refinement and improvements for 1) creation of updated (2016) GAP known range presence maps and 2) North Carolina Bird Atlas applications.
+
+Recent developments include 1) fixing filters on listed issues, 2) removing duplicate records on the bases of x y coordinats and date-time, and 3) adding capabilities to limit data requests by an area of interest and/or extent of species occurrence.

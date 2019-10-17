@@ -889,7 +889,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     OKsql = """SELECT duplicates_OK FROM gbif_filters
                    WHERE filter_id = '{0}';""".format(gbif_filter_id)
     duplicates_OK = cursor2.execute(OKsql).fetchone()[0]
-    print(duplicates_OK)
     if duplicates_OK == "False":
         duptime1 = datetime.now()
         conn3 = sqlite3.connect(spdb)
@@ -902,7 +901,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                             (SELECT occ_id
                              FROM occurrences
                              GROUP BY latitude, longitude, occurrenceDate
-                             HAVING individualCount = max(individualCount));"""
+                             HAVING max(individualCount));"""
         dupcount = cursor3.execute(sql_dupcnt).fetchone()[0]
 
         # Delete duplicate records without the highest individualCount among duplicates.
@@ -912,7 +911,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                             (SELECT occ_id
                              FROM occurrences
                              GROUP BY latitude, longitude, occurrenceDate
-                             HAVING individualCount = max(individualCount));"""
+                             HAVING max(individualCount));"""
         cursor3.execute(sql_deldup)
 
         duptime2 = datetime.now()
