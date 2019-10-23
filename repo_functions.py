@@ -471,6 +471,9 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         sp_polygon = shapely.wkt.loads(sp_geom)
         poly_intersection = filter_polygon.intersection(sp_polygon)
         poly = shapely.wkt.dumps(poly_intersection)
+    print("Got request params and sorted out geometry constraints: " + str(datetime.now() - requesttime1))
+    requesttime2 = datetime.now()
+
 
     #################### REQUEST RECORDS ACCORDING TO REQUEST PARAMS
     # First, find out how many records there are that meet criteria
@@ -505,18 +508,19 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         occs = occ_json['results']
         alloccs = alloccs + occs
 
-    print("Downloaded records: " + str(datetime.now() - requesttime1))
+    print("Downloaded records: " + str(datetime.now() - requesttime2))
     print('\t{0} records exist with the request parameters'.format(occ_count))
 
-    ######################### CREATE SUMMARY TABLE OF KEYS/FIELDS RETURNED  !!!!!! SLOW PART STARTS
-    requestsummarytime1 = datetime.now()
+    ######################### CREATE SUMMARY TABLE OF KEYS/FIELDS RETURNED
     keys = [list(x.keys()) for x in alloccs]
     keys2 = set([])
     for x in keys:
         keys2 = keys2 | set(x)
     dfK = pd.DataFrame(index=keys2, columns=['included(n)', 'populated(n)'])
+    print(dfK)
     dfK['included(n)'] = 0
     dfK['populated(n)'] = 0
+    requestsummarytime1 = datetime.now()                                        #####  START SLOW 
     for t in alloccs:
         for y in t.keys():
             dfK.loc[y, 'included(n)'] += 1
@@ -528,8 +532,15 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                     pass
                 elif len(t[y]) > 0:
                     dfK.loc[y, 'populated(n)'] += 1
+    
+    slow1 = datetime.now()                                                       #######
+    print("\t Slow part 1 : " + str(slow1 - requestsummarytime1))                 # Timer
+    #                                                                     !!!!!!  SLOW PART HAS ENDED BY HERE
+
     dfK.sort_index(inplace=True)
     dfK.to_sql(name='gbif_fields_returned', con=conn, if_exists='replace')
+    
+    
 
     ############################# SAVE SUMMARY OF VALUES RETURNED (REQUEST)
     summary = {'datums': ['WGS84'],
@@ -665,8 +676,8 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
             frog = """INSERT INTO post_request_value_counts (attribute, value, count)
                       VALUES ("{0}", "{1}", "{2}")""".format(x,y,z)
             cursor.execute(frog)
+    print("\t Slow part 2 : " + str(datetime.now() - slow1))
     print("Created summary table of request results: " + str(datetime.now() - requestsummarytime1))
-    #                                                                     !!!!!!  SLOW PART HAS ENDED BY HERE
 
     ##################################################  FILTER MORE
     ###############################################################
