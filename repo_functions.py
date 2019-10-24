@@ -2,7 +2,7 @@
 def MapShapefilePolygons(map_these, title):
     """
     Displays shapefiles on a simple CONUS basemap.  Maps are plotted in the order
-    provided so put the top map last in the listself.  You can specify a column
+    provided so put the top map last in the list.  You can specify a column
     to map as well as custom colors for it.  This function may not be very robust
     to other applications.
 
@@ -520,7 +520,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     print(dfK)
     dfK['included(n)'] = 0
     dfK['populated(n)'] = 0
-    requestsummarytime1 = datetime.now()                                        #####  START SLOW 
+    requestsummarytime1 = datetime.now()                                        #####  START SLOW
     for t in alloccs:
         for y in t.keys():
             dfK.loc[y, 'included(n)'] += 1
@@ -532,15 +532,15 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                     pass
                 elif len(t[y]) > 0:
                     dfK.loc[y, 'populated(n)'] += 1
-    
+
     slow1 = datetime.now()                                                       #######
     print("\t Slow part 1 : " + str(slow1 - requestsummarytime1))                 # Timer
     #                                                                     !!!!!!  SLOW PART HAS ENDED BY HERE
 
     dfK.sort_index(inplace=True)
     dfK.to_sql(name='gbif_fields_returned', con=conn, if_exists='replace')
-    
-    
+
+
 
     ############################# SAVE SUMMARY OF VALUES RETURNED (REQUEST)
     summary = {'datums': ['WGS84'],
