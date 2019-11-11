@@ -104,7 +104,6 @@ def MapShapefilePolygons(map_these, title):
     plt.title(title, fontsize=20, pad=-40, backgroundcolor='w')
     return
 
-
 # Define a function for displaying the maps that will be created.  North Carolina version.
 def MapShapefilePolygons_NC(map_these, title):
     """
@@ -242,7 +241,6 @@ def download_GAP_range_CONUS2001v1(gap_id, toDir):
     # Return path to range file without extension
     return rng_zip.replace('.zip', '')
 
-
 def getGBIFcode(name, rank='species'):
     """
     Returns the GBIF species code for a scientific name.
@@ -252,8 +250,6 @@ def getGBIFcode(name, rank='species'):
     from pygbif import species
     key = species.name_backbone(name = name, rank='species')['usageKey']
     return key
-
-
 
 def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                               gbif_filter_id, default_coordUncertainty, SRID_dict,
