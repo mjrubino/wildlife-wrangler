@@ -265,7 +265,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     some maps.
 
     To do:
-    1.  Maximize filtering.
     2.  Can we use EPSG:5070?
     3.  Account for possiblity of non-4326 occurrence records in gbif? Solution
         would be to transform before entering into database.
@@ -512,6 +511,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     print('\t{0} records exist with the request parameters'.format(occ_count))
 
     ######################### CREATE SUMMARY TABLE OF KEYS/FIELDS RETURNED
+    """                                                                         ### TOO SLOW
     keys = [list(x.keys()) for x in alloccs]
     keys2 = set([])
     for x in keys:
@@ -520,7 +520,9 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     print(dfK)
     dfK['included(n)'] = 0
     dfK['populated(n)'] = 0
-    requestsummarytime1 = datetime.now()                                        #####  START SLOW
+    """
+    requestsummarytime1 = datetime.now()
+    """                                    #####  START SLOW
     for t in alloccs:
         for y in t.keys():
             dfK.loc[y, 'included(n)'] += 1
@@ -532,14 +534,15 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                     pass
                 elif len(t[y]) > 0:
                     dfK.loc[y, 'populated(n)'] += 1
-
-    slow1 = datetime.now()                                                       #######
+    """
+    slow1 = datetime.now()
+    """                                                       #######
     print("\t Slow part 1 : " + str(slow1 - requestsummarytime1))                 # Timer
     #                                                                     !!!!!!  SLOW PART HAS ENDED BY HERE
 
     dfK.sort_index(inplace=True)
     dfK.to_sql(name='gbif_fields_returned', con=conn, if_exists='replace')
-
+    """
 
 
     ############################# SAVE SUMMARY OF VALUES RETURNED (REQUEST)
@@ -676,7 +679,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
             frog = """INSERT INTO post_request_value_counts (attribute, value, count)
                       VALUES ("{0}", "{1}", "{2}")""".format(x,y,z)
             cursor.execute(frog)
-    print("\t Slow part 2 : " + str(datetime.now() - slow1))
+    #print("\t Slow part 2 : " + str(datetime.now() - slow1))
     print("Created summary table of request results: " + str(datetime.now() - requestsummarytime1))
 
     ##################################################  FILTER MORE
