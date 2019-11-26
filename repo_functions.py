@@ -1005,6 +1005,11 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     OKsql = """SELECT duplicates_OK FROM gbif_filters
                    WHERE filter_id = '{0}';""".format(gbif_filter_id)
     duplicates_OK = cursor2.execute(OKsql).fetchone()[0]
+
+    conn2.commit()
+    conn2.close()
+    del cursor2
+
     if duplicates_OK == "False":
         duptime1 = datetime.now()
         conn3 = sqlite3.connect(spdb)
@@ -1033,8 +1038,14 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         duptime2 = datetime.now()
         print("Removed duplicates: " + str(duptime2 - duptime1))
         print("\t{0} duplicates were deleted".format(dupcount))
+
+        conn3.commit()
+        conn3.close()
+        del cursor3
+
     if duplicates_OK == "True":
         print("DUPLICATES ON LATITUDE, LONGITUDE, DATE-TIME INCLUDED")
+
 
     ################################################  BUFFER POINTS
     ###############################################################
@@ -1055,7 +1066,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
             SET radius_meters = detection_distance + coordinateUncertaintyInMeters;
 
             DETACH DATABASE requests;
-    """.format(requestsDB, det_dist)
+            """.format(requestsDB, det_dist)
     cursor.executescript(sql_det)
 
     sql_buf = """
@@ -1095,8 +1106,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                                                            summary_name))
     conn.commit()
     #conn.close()
-    conn2.commit()
-    conn2.close()
+
     print("Exported maps: " + str(datetime.now() - exporttime1))
     print("\nRecords saved in {0}".format(spdb))
 
