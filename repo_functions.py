@@ -312,7 +312,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     #############################################################################
     os.chdir(codeDir)
     # Get species info from requests database
-    conn2 = sqlite3.connect(codeDir + 'parameters.sqlite')
+    conn2 = sqlite3.connect(codeDir + 'parameters.sqlite', isolation_level='DEFERRED')
     cursor2 = conn2.cursor()
     sql_tax = """SELECT gbif_id, common_name, scientific_name,
                         detection_distance_meters, gap_id, geometry
@@ -341,7 +341,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         os.remove(spdb)
 
     # Create or connect to the database
-    conn = sqlite3.connect(spdb)
+    conn = sqlite3.connect(spdb, isolation_level='DEFERRED')
     conn.enable_load_extension(True)
     conn.execute('SELECT load_extension("mod_spatialite")')
     cursor = conn.cursor()
@@ -979,18 +979,32 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                                                'coordinateUncertaintyInMeters',
                                                'occurrenceDate', 'request_id',
                                                'filter_id', 'generalizations',
-                                               'remarks', 'geom_xy4326')
-                        VALUES {0}, GeomFromText('POINT({1} {2})',
-                                                    {3}))""".format(str(insert1)[:-1],
-                        x['decimalLongitude'], x['decimalLatitude'],
-                        SRID_dict[x['geodeticDatum']])
-            cursor.executescript(sql1)
+                                               'remarks')
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
+            cursor.executemany(sql1, [(insert1)])
+            
         except Exception as e:
             print("\nThere was a problem with the following record:")
             print(e)
             print(x)
+    print("Inserted records: " + str(datetime.now() - inserttime1))
+    
+    inserttime2 = datetime.now()
+    try:
+        sql2 = """UPDATE occurrences 
+                  SET geom_xy4326 = GeomFromText('POINT({0} {1})', {2});
+                   
+               """.format(x['decimalLongitude'], x['decimalLatitude'], SRID_dict[x['geodeticDatum']])
+        cursor.executescript(sql2)
+    
+    except Exception as e:
+        print(e)
+    
+    print("Updated occurrences table geometry column: " + str(datetime.now() - inserttime2))
 
+                          
     # Update the individual count when it exists
+    inserttime3 = datetime.now()                      
     for e in alloccsX:
         if 'individualCount' in e.keys():
             sql2 = """UPDATE occurrences
@@ -998,7 +1012,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                 WHERE occ_id = {1};""".format(e['individualCount'], e['gbifID'])
             cursor.execute(sql2)
     conn.commit()
-    print("Performed post-request filtering: " + str(datetime.now() - inserttime1))
+    print("Inserted records: " + str(datetime.now() - inserttime3))
 
     ################################################  HANDLE DUPLICATES
     ###################################################################
