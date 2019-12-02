@@ -980,7 +980,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                                                'occurrenceDate', 'request_id',
                                                'filter_id', 'generalizations',
                                                'remarks')
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
             cursor.executemany(sql1, [(insert1)])
             
         except Exception as e:
@@ -992,10 +992,8 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     inserttime2 = datetime.now()
     try:
         sql2 = """UPDATE occurrences 
-                  SET geom_xy4326 = GeomFromText('POINT({0} {1})', {2});
-                   
-               """.format(x['decimalLongitude'], x['decimalLatitude'], SRID_dict[x['geodeticDatum']])
-        cursor.executescript(sql2)
+                  SET geom_xy4326 = GeomFromText('POINT('||"longitude"||' '||"latitude"||')', 4326);"""
+        cursor.execute(sql2)
     
     except Exception as e:
         print(e)
