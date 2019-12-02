@@ -292,6 +292,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     import shapely
     from shapely.wkt import dumps, loads
     from datetime import datetime
+    import sys
 
 
     # Environment variables need to be handled
@@ -483,6 +484,12 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                                     country=country,
                                     geometry=poly)
     occ_count=occ_search['count']
+    print(str(occ_count) + " records available")
+    
+    if occ_count >=200000:
+        print("Too many records, you must retrieve via email.")
+        sys.exit()
+       
 
     # Get occurrences in batches, saving into master list
     alloccs = []
@@ -1010,7 +1017,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                 WHERE occ_id = {1};""".format(e['individualCount'], e['gbifID'])
             cursor.execute(sql2)
     conn.commit()
-    print("Inserted records: " + str(datetime.now() - inserttime3))
+    print("Updated individuaCount column: " + str(datetime.now() - inserttime3))
 
     ################################################  HANDLE DUPLICATES
     ###################################################################
