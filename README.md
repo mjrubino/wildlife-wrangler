@@ -4,7 +4,7 @@ The abundance of wildlife occurrence datasets that are currently accessible can 
 ## Framework
 Data is requested from occurrence dataset API's and filtered according to species- and request-specific parameters.  Filtered occurrence records are saved in a database.  The details of species-concepts and filter parameter sets are stored in a database for use and reference.  Additionally, jupyter notebooks are created that describe the filtered datasets for the sake of documentation and for decision making about filter parameterization.
 
-## Criteria
+## Features
 This framework is designed to meet several important criteria in order to provide summaries that can be interpreted at face value with high confidence or trusted when feeding into analyses and evaluations.
 * Automation -- the volume of data and species involved necessitates the processes be automated. Automation also reduces subjectivity in decision making, enables thorough documentation, and ensures repeatability.
 
@@ -24,6 +24,16 @@ This framework is designed to meet several important criteria in order to provid
   * Species concepts are dynamic -- taxonomic classifications are constantly being scrutinized and are revised annually.  As a result, different projects may have used different concepts for the same species name (common or scientific).  In many cases, this is not a big problem because the species is unique and easily identifiable and taxonomic changes regard names only.  More problematic are cases where genetic studies have identified species that are nearly identical physiologically and were once considered a single species.  Such cases often reveal geographic patterns in species occurrence that may be used by some observers as a basis for identification of individuals in the field thus introducing circularity. For example, a bird watcher decides an individual's identity in part based on which species is supposed to occur in the area *or* a species' range is revised and eBird changes records of the old species concept from the area where it is now known not to occur to the correct species.  Dynamic species-concepts are a daunting challenge, but can hopefully be handled with scrutinizing taxonomic crosswalks.  In this framework, species-concepts are documented in 'parameters.sqlite' with columns for the years the concept was valid and a geometry column where a polygon of potential occurrence could be recorded.  This whole topic needs more work, but the BCB Taxa Information Registry can contribute a lot.
   * Data sensivity regarding poaching risk -- More a challenge than criteria, is the issue of occurrence records for many species, especially herpetofauna, being sensitive data due to the threat of poaching.  Individuals of rare and imperiled species are regularly captured in the wild for sale on black markets, sometimes providing hundreds of dollars per individual.  Poachers are known to review and interpret scientific data in order to determine the locations of populations that they can collect from.  This creates a serious challenge for those managing and summarizing locational data.  Managers of some databases "fuzz" or buffer points to coarsen the information to a level that isn't useful to poachers, which also limits the usefulness of data for conservation assessments.  Not only does this issues create limitations on the user's end, it also creates restrictions on how data providers can/should share and store records.  Data in the hands of federal agencies is subject to Freedom of Information Act requests.  This issue may shape aspects of the framework.  For example, it may be necessary to make this technology deployable to individual users and include a portal for data sets that are available to the user but remain unavailable from public facing or federal data sets.  
 
+## Recent changes
+* Added ability to limit requests to within geometries.
+* Handling duplicate records on the bases of x y coordinats and date-time
+* Added ability to specify a limiting extent for a species concept.
+* Increased process speed by 2,300%.
+
+## Coming soon
+* Handling requests of > 200,000 records.
+* Ability to incorporate records directly from a copy of the eBird data set that user has downloaded.
+* Generalization of framework to better facilitate multiple users.  Parameters.sqlite will be replaced with a template that user can build from.  Each user will access a local copy of parameters.sqlite filled out to for their needs.
 
 ## Inputs
 Data is gathered from catalogs and databases through API's so there are few inputs.  However, the 'parameters.sqlite' database is needed, which includes tables for species-concepts, data request parameters, and post-request filtering criteria.
@@ -36,15 +46,10 @@ On a per-species basis
 * Notebooks that describe decisions made and the data acquired.
 
 ## Constraints
-None at this time
+* Queries returning > 200,000 records will fail.
 
 ## Dependencies
 Python 3 and numerous packages including sqlite3 with the spatialite extension.  An environment can be created from the ENVIRONMENT.yml file included in this repository.
 
 ## Code
 All code is included in this repository.  Runtimes of discrete tasks made grouping code into separate functions preferable.  
-
-## Status
-A draft framework has been established for GBIF data.  Current work is focused on refinement and improvements for 1) creation of updated (2016) GAP known range presence maps and 2) North Carolina Bird Atlas applications.
-
-Recent developments include 1) fixing filters on listed issues, 2) removing duplicate records on the bases of x y coordinats and date-time, and 3) adding capabilities to limit data requests by an area of interest and/or extent of species occurrence.
