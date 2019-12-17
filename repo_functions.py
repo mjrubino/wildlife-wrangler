@@ -485,539 +485,551 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                                     geometry=poly)
     occ_count=occ_search['count']
     print(str(occ_count) + " records available")
-    
-    if occ_count >=200000:
-        print("Too many records, you must retrieve via email.")
-        sys.exit()
-       
 
-    # Get occurrences in batches, saving into master list
-    alloccs = []
-    batches = range(0, occ_count, 300)
-    for i in batches:
-        occ_json = occurrences.search(gbif_id,
-                                      limit=300,
-                                      offset=i,
-                                      year=years,
-                                      month=months,
-                                      decimalLatitude=latRange,
-                                      decimalLongitude=lonRange,
-                                      hasGeospatialIssue=geoIssue,
-                                      hasCoordinate=coordinate,
-                                      continent=continent,
-                                      country=country,
-                                      geometry=poly)
-        occs = occ_json['results']
-        alloccs = alloccs + occs
+    # If there are fewer than 100,000 records, then just retrieve json in batches
+    if occ_count <100000:
+        # Get occurrences in batches, saving into master list
+        alloccs = []
+        batches = range(0, occ_count, 300)
+        for i in batches:
+            occ_json = occurrences.search(gbif_id,
+                                          limit=300,
+                                          offset=i,
+                                          year=years,
+                                          month=months,
+                                          decimalLatitude=latRange,
+                                          decimalLongitude=lonRange,
+                                          hasGeospatialIssue=geoIssue,
+                                          hasCoordinate=coordinate,
+                                          continent=continent,
+                                          country=country,
+                                          geometry=poly)
+            occs = occ_json['results']
+            alloccs = alloccs + occs
 
-    print("Downloaded records: " + str(datetime.now() - requesttime2))
-    print('\t{0} records exist with the request parameters'.format(occ_count))
+        print("Downloaded records: " + str(datetime.now() - requesttime2))
+        print('\t{0} records exist with the request parameters'.format(occ_count))
 
-    ######################### CREATE SUMMARY TABLE OF KEYS/FIELDS RETURNED
-    """                                                                         ### TOO SLOW
-    keys = [list(x.keys()) for x in alloccs]
-    keys2 = set([])
-    for x in keys:
-        keys2 = keys2 | set(x)
-    dfK = pd.DataFrame(index=keys2, columns=['included(n)', 'populated(n)'])
-    print(dfK)
-    dfK['included(n)'] = 0
-    dfK['populated(n)'] = 0
-    """
-    requestsummarytime1 = datetime.now()
-    """                                    #####  START SLOW
-    for t in alloccs:
-        for y in t.keys():
-            dfK.loc[y, 'included(n)'] += 1
-            try:
-                int(t[y])
-                dfK.loc[y, 'populated(n)'] += 1
-            except:
-                if t[y] == None:
-                    pass
-                elif len(t[y]) > 0:
+        ######################### CREATE SUMMARY TABLE OF KEYS/FIELDS RETURNED
+        """                                                                         ### TOO SLOW
+        keys = [list(x.keys()) for x in alloccs]
+        keys2 = set([])
+        for x in keys:
+            keys2 = keys2 | set(x)
+        dfK = pd.DataFrame(index=keys2, columns=['included(n)', 'populated(n)'])
+        print(dfK)
+        dfK['included(n)'] = 0
+        dfK['populated(n)'] = 0
+        """
+        requestsummarytime1 = datetime.now()
+        """                                    #####  START SLOW
+        for t in alloccs:
+            for y in t.keys():
+                dfK.loc[y, 'included(n)'] += 1
+                try:
+                    int(t[y])
                     dfK.loc[y, 'populated(n)'] += 1
-    """
-    slow1 = datetime.now()
-    """                                                       #######
-    print("\t Slow part 1 : " + str(slow1 - requestsummarytime1))                 # Timer
-    #                                                                     !!!!!!  SLOW PART HAS ENDED BY HERE
+                except:
+                    if t[y] == None:
+                        pass
+                    elif len(t[y]) > 0:
+                        dfK.loc[y, 'populated(n)'] += 1
+        """
+        slow1 = datetime.now()
+        """                                                       #######
+        print("\t Slow part 1 : " + str(slow1 - requestsummarytime1))                 # Timer
+        #                                                                     !!!!!!  SLOW PART HAS ENDED BY HERE
 
-    dfK.sort_index(inplace=True)
-    dfK.to_sql(name='gbif_fields_returned', con=conn, if_exists='replace')
-    """
+        dfK.sort_index(inplace=True)
+        dfK.to_sql(name='gbif_fields_returned', con=conn, if_exists='replace')
+        """
 
 
-    ############################# SAVE SUMMARY OF VALUES RETURNED (REQUEST)
-    summary = {'datums': ['WGS84'],
-               'issues': set([]),
-               'bases': [],
-               'institutions': [],
-               'collections': [],
-               'generalizations': set([]),
-               'remarks': set([]),
-               'establishment': set([]),
-               'IDqualifier': set([]),
-               'protocols': set([])}
+        ############################# SAVE SUMMARY OF VALUES RETURNED (REQUEST)
+        summary = {'datums': ['WGS84'],
+                   'issues': set([]),
+                   'bases': [],
+                   'institutions': [],
+                   'collections': [],
+                   'generalizations': set([]),
+                   'remarks': set([]),
+                   'establishment': set([]),
+                   'IDqualifier': set([]),
+                   'protocols': set([])}
 
-    value_summaries = {'bases': {},
-                      'datums': {'WGS84': 0},
-                      'issues': {},
-                      'institutions': {},
-                      'collections': {},
-                      'protocols': {},
-                      'samplingProtocols': {}}
+        value_summaries = {'bases': {},
+                          'datums': {'WGS84': 0},
+                          'issues': {},
+                          'institutions': {},
+                          'collections': {},
+                          'protocols': {},
+                          'samplingProtocols': {}}
 
-    for occdict in alloccs:
-        # datums
-        if occdict['geodeticDatum'] != 'WGS84':
-            summary['datums'] = summary['datums'] + occdict['geodeticDatum']
-            if occdict['geodeticDatum'] not in value_summaries['datums'].keys():
-                value_summaries['datums'][occdict['geodeticDatum']] = 0
+        for occdict in alloccs:
+            # datums
+            if occdict['geodeticDatum'] != 'WGS84':
+                summary['datums'] = summary['datums'] + occdict['geodeticDatum']
+                if occdict['geodeticDatum'] not in value_summaries['datums'].keys():
+                    value_summaries['datums'][occdict['geodeticDatum']] = 0
+                else:
+                    value_summaries['datums'][occdict['geodeticDatum']] += 1
+            if occdict['geodeticDatum'] == 'WGS84':
+                value_summaries['datums']['WGS84'] += 1
+
+            # issues
+            summary['issues'] = summary['issues'] | set(occdict['issues'])
+            for issue in occdict['issues']:
+                if issue not in value_summaries['issues'].keys():
+                    value_summaries['issues'][issue] = 1
+                if issue in value_summaries['issues'].keys():
+                    value_summaries['issues'][issue] += 1
+
+            # basis or record
+            BOR = occdict['basisOfRecord']
+            if BOR == "" or BOR == None:
+                BOR = 'UNKNOWN'
+            summary['bases'] = summary['bases'] + [BOR]
+
+            if BOR in value_summaries['bases'].keys():
+                value_summaries['bases'][BOR] += 1
             else:
-                value_summaries['datums'][occdict['geodeticDatum']] += 1
-        if occdict['geodeticDatum'] == 'WGS84':
-            value_summaries['datums']['WGS84'] += 1
+                value_summaries['bases'][BOR] = 1
 
-        # issues
-        summary['issues'] = summary['issues'] | set(occdict['issues'])
-        for issue in occdict['issues']:
-            if issue not in value_summaries['issues'].keys():
-                value_summaries['issues'][issue] = 1
-            if issue in value_summaries['issues'].keys():
-                value_summaries['issues'][issue] += 1
-
-        # basis or record
-        BOR = occdict['basisOfRecord']
-        if BOR == "" or BOR == None:
-            BOR = 'UNKNOWN'
-        summary['bases'] = summary['bases'] + [BOR]
-
-        if BOR in value_summaries['bases'].keys():
-            value_summaries['bases'][BOR] += 1
-        else:
-            value_summaries['bases'][BOR] = 1
-
-        # institution
-        try:
-            who = occdict['institutionID']
-        except:
-            try:
-                who = occdict['institutionCode']
-            except:
-                who = 'unknown'
-
-        summary['institutions'] = summary['institutions'] + [who]
-
-        if who in value_summaries['institutions'].keys():
-            value_summaries['institutions'][who] += 1
-        else:
-            value_summaries['institutions'][who] = 1
-
-        # collections
-        try:
-            co = occdict['collectionCode']
-        except:
-            co = 'UNKNOWN'
-
-        summary['collections'] = summary['collections'] + [co]
-
-        if co in value_summaries['collections'].keys():
-            value_summaries['collections'][co] += 1
-        else:
-            value_summaries['collections'][co] = 1
-
-        # establishment means
-        try:
-            est = occdict['establishmentMeans']
-            summary['establishment'] = summary['establishment'] | set([est])
-        except:
-            pass
-
-        # identification qualifier
-        try:
-            qual = occdict['identificationQualifier']
-            summary['IDqualifier'] = summary['IDqualifier'] | set([qual])
-        except:
-            pass
-
-        # protocols -- NOTE this essentially combines two fields
-        try:
-            proto = occdict['protocol']
-        except:
-            proto = 'UNKNOWN'
-        summary['protocols'] = summary['protocols'] | set([proto])
-
-        if proto in value_summaries['protocols'].keys():
-            value_summaries['protocols'][proto] += 1
-        else:
-            value_summaries['protocols'][proto] = 1
-
-        try:
-            samproto = occdict['samplingProtocol']
-        except:
-            samproto = 'UKNOWN'
-        summary['protocols'] = summary['protocols'] | set([samproto])
-
-        if samproto in value_summaries['samplingProtocols'].keys():
-            value_summaries['samplingProtocols'][samproto] += 1
-        else:
-            value_summaries['samplingProtocols'][samproto] = 1
-
-    # Remove duplicates, make strings for entry into summary table of attributes
-    cursor.executescript("""CREATE TABLE record_attributes (step TEXT, field TEXT, vals TEXT);""")
-    for x in summary.keys():
-        vals = str(list(set(summary[x]))).replace('"', '')
-        stmt = """INSERT INTO record_attributes (step, field, vals)
-                  VALUES ("request", "{0}", "{1}");""".format(x, vals)
-        cursor.execute(stmt)
-
-    # Store the value summary for the selected fields in a table.
-    cursor.executescript("""CREATE TABLE post_request_value_counts
-                            (attribute TEXT, value TEXT, count INTEGER);""")
-    for x in value_summaries.keys():
-        attribute = value_summaries[x]
-        for y in value_summaries[x].keys():
-            z = value_summaries[x][y]
-            frog = """INSERT INTO post_request_value_counts (attribute, value, count)
-                      VALUES ("{0}", "{1}", "{2}")""".format(x,y,z)
-            cursor.execute(frog)
-    #print("\t Slow part 2 : " + str(datetime.now() - slow1))
-    print("Created summary table of request results: " + str(datetime.now() - requestsummarytime1))
-
-    ##################################################  FILTER MORE
-    ###############################################################
-    # Pull out relevant attributes from occurrence dictionaries.  Filtering
-    # will be performed with info from these keys.
-    filtertime1 = datetime.now()
-    keykeys = ['basisOfRecord', 'individualCount', 'acceptedTaxonKey',
-               'scientificName', 'acceptedScientificName','taxonomicStatus',
-               'decimalLongitude', 'decimalLatitude',
-               'coordinateUncertaintyInMeters', 'year',
-               'month', 'day', 'eventDate', 'issues','geodeticDatum',
-               'gbifID', 'type', 'preparations', 'occurrenceStatus',
-               'georeferenceProtocol', 'georeferenceVerificationStatus',
-               'occurrenceID', 'dataGeneralizations', 'eventRemarks', 'locality',
-               'locationRemarks', 'occurrenceRemarks', 'collectionCode',
-               'protocol', 'samplingProtocol', 'institutionCode']
-    alloccs2 = []
-    for x in alloccs:
-        alloccs2.append(dict((y,x[y]) for y in x if y in keykeys))
-
-    # Combine remarks FIELDS
-    for x in alloccs2:
-        remarks = str()
-        try:
-            put = x['locality']
-            remarks = remarks + "; " + put
-        except:
-            pass
-
-        try:
-            these = x['eventRemarks']
-            remarks = remarks + "; " + these
-        except:
-            pass
-
-        try:
-            tog = x['locationRemarks']
-            remarks = remarks + "; " + tog
-        except:
-            pass
-
-        try:
-            ether = x['occurrenceRemarks']
-            remarks = remarks + ether
-        except:
-            pass
-
-        try:
-            x['remarks'] = remarks
-        except Exception as e:
-            x['remarks'] = ""
-
-    # Identify data generalizations
-    for x in alloccs2:
-        if 'dataGeneralizations' not in x.keys():
-            x['dataGeneralizations'] = ""
-
-    # HAS COORDINATE UNCERTAINTY
-    sql_green = """SELECT has_coordinate_uncertainty FROM gbif_filters
-                   WHERE filter_id = '{0}';""".format(gbif_filter_id)
-    filt_coordUncertainty = cursor2.execute(sql_green).fetchone()[0]
-
-    if filt_coordUncertainty == 1:
-        alloccs3 = [x for x in alloccs2 if 'coordinateUncertaintyInMeters'
-                    in x.keys()]
-    if filt_coordUncertainty == 0:
-        alloccs3 = alloccs2
-    del alloccs2
-
-    # MAXIMUM COORDINATE UNCERTAINTY
-    sql_maxcoord = """SELECT max_coordinate_uncertainty FROM gbif_filters
-                   WHERE filter_id = '{0}';""".format(gbif_filter_id)
-    filt_maxcoord = cursor2.execute(sql_maxcoord).fetchone()[0]
-    alloccs4 = []
-    for x in alloccs3:
-        if 'coordinateUncertaintyInMeters' not in x.keys():
-            alloccs4.append(x)
-        elif x['coordinateUncertaintyInMeters'] <= filt_maxcoord:
-            alloccs4.append(x)
-        else:
-            pass
-    del alloccs3
-
-    # COLLECTION CODES
-    sql_collection = """SELECT collection_codes_omit FROM gbif_filters
-                   WHERE filter_id = '{0}';""".format(gbif_filter_id)
-    filt_collection = cursor2.execute(sql_collection).fetchone()[0]
-    if type(filt_collection) == str:
-        filt_collection = list(filt_collection.split(', '))
-    else:
-        filt_collection = []
-
-    alloccs5 = []
-    for x in alloccs4:
-        if 'collectionCode' in x.keys():
-            if x['collectionCode'] not in list(filt_collection):
-                alloccs5.append(x)
-            elif 'collectionCode' not in x.keys():
-                alloccs5.append(x)
-            else:
-                pass
-        else:
-            alloccs5.append(x)
-    del alloccs4
-
-    # INSTITUTIONS
-    sql_instit = """SELECT institutions_omit FROM gbif_filters
-                   WHERE filter_id = '{0}';""".format(gbif_filter_id)
-    filt_instit = cursor2.execute(sql_instit).fetchone()[0]
-    if type(filt_instit) == str:
-        filt_instit = list(filt_instit.split(', '))
-    else:
-        filt_instit = []
-
-    alloccs6 = []
-    for x in alloccs5:
-        if 'institutionCode' in x.keys():
-            if x['institutionCode'] not in filt_instit:
-                alloccs6.append(x)
-        else:
-            alloccs6.append(x)
-    del alloccs5
-
-    # BASES
-    sql_bases = """SELECT bases_omit FROM gbif_filters
-                   WHERE filter_id = '{0}';""".format(gbif_filter_id)
-    filt_bases = cursor2.execute(sql_bases).fetchone()[0]
-    if type(filt_bases) == str:
-        filt_bases = list(filt_bases.split(', '))
-    else:
-        filt_bases = []
-
-    alloccs7 = []
-    for x in alloccs6:
-         if x['basisOfRecord'] not in list(filt_bases):
-             alloccs7.append(x)
-         elif 'basisOfRecord' not in x.keys():
-             alloccs7.append(x)
-         else:
-             pass
-    del alloccs6
-
-    # PROTOCOLS
-    sql_protocols = """SELECT protocols_omit FROM gbif_filters
-                   WHERE filter_id = '{0}';""".format(gbif_filter_id)
-    filt_protocols = cursor2.execute(sql_protocols).fetchone()[0]
-    if type(filt_protocols) == str:
-        filt_protocols = list(filt_protocols.split(', '))
-    else:
-        filt_protocols = []
-
-    alloccs8 = []
-    for x in alloccs7:
-        if x['protocol'] not in filt_protocols:
-            alloccs8.append(x)
-        elif 'protocol' not in x.keys():
-            alloccs8.append(x)
-        else:
-            pass
-    del alloccs7
-
-    # ISSUES
-    sql_issues = """SELECT issues_omit FROM gbif_filters
-                   WHERE filter_id = '{0}';""".format(gbif_filter_id)
-    filt_issues = cursor2.execute(sql_issues).fetchone()[0]
-
-    if type(filt_issues) == str:
-        filt_issues = list(filt_issues.split(', '))
-    else:
-        filt_issues = []
-
-    alloccs9 = []
-    for x in alloccs8: # If none of list items are in issues omit list
-        if len(set(x['issues']) & set(filt_issues)) == 0:
-            alloccs9.append(x)
-        elif 'issues' not in x.keys():
-            alloccs9.append(x)
-        else:
-            pass
-    del alloccs8
-
-    # SAMPLING PROTOCOL
-    sql_sampling = """SELECT sampling_protocols_omit FROM gbif_filters
-                   WHERE filter_id = '{0}';""".format(gbif_filter_id)
-    filt_sampling = cursor2.execute(sql_sampling).fetchone()[0]
-    if type(filt_sampling) == str:
-        filt_sampling = list(filt_sampling.split(', '))
-    else:
-        filt_sampling = []
-
-    alloccsX = []
-    for x in alloccs9:
-        if 'samplingProtocol' in x.keys():
-            if x['samplingProtocol'] not in filt_sampling:
-                alloccsX.append(x)
-        else:
-            alloccsX.append(x)
-    del alloccs9
-    print("Performed post-request filtering: " + str(datetime.now() - filtertime1))
-
-
-    ############################# SAVE SUMMARY OF VALUES KEPT (FILTER)
-    filtersummarytime1 = datetime.now()
-    summary2 = {'datums': ['WGS84'],
-               'issues': set([]),
-               'bases': [],
-               'institutions': [],
-               'collections': [],
-               'generalizations': set([]),
-               'remarks': set([]),
-               'establishment': set([]),
-               'IDqualifier': set([]),
-               'protocols': set([])}
-
-    for occdict in alloccsX:
-        # datums
-        if occdict['geodeticDatum'] != 'WGS84':
-            summary2['datums'] = summary2['datums'] + occdict['geodeticDatum']
-        # issues
-        summary2['issues'] = summary2['issues'] | set(occdict['issues'])
-        # basis of record
-        BOR = occdict['basisOfRecord']
-        if BOR == "" or BOR == None:
-            summary2['bases'] = summary2['bases'] + ["UNKNOWN"]
-        else:
-            summary2['bases'] = summary2['bases'] + [BOR]
-        # institution
-        try:
+            # institution
             try:
                 who = occdict['institutionID']
-                summary2['institutions'] = summary2['institutions'] + [who]
             except:
-                who = occdict['institutionCode']
-                summary2['institutions'] = summary2['institutions'] + [who]
-        except:
-            summary2['institutions'] = summary2['institutions'] + ['UNKNOWN']
-        # collections
-        try:
-            co = occdict['collectionCode']
-            summary2['collections'] = summary2['collections'] + [co]
-        except:
-            pass
-        # establishment means
-        try:
-            est = occdict['establishmentMeans']
-            summary2['establishment'] = summary2['establishment'] | set([est])
-        except:
-            pass
-        # identification qualifier
-        try:
-            qual = occdict['identificationQualifier']
-            summary2['IDqualifier'] = summary2['IDqualifier'] | set([qual])
-        except:
-            pass
-        # protocols
-        try:
-            proto = occdict['protocol']
-            summary2['protocols'] = summary2['protocols'] | set([proto])
-        except:
-            pass
-        try:
-            samproto = occdict['samplingProtocol']
-            summary2['protocols'] = summary2['protocols'] | set([samproto])
-        except:
-            pass
+                try:
+                    who = occdict['institutionCode']
+                except:
+                    who = 'unknown'
 
-    # Remove duplicates, make strings for entry into table
-    for x in summary2.keys():
-        stmt = """INSERT INTO record_attributes (step, field, vals)
-                  VALUES ("filter", "{0}", "{1}");""".format(x, str(list(set(summary2[x]))).replace('"', ''))
-        cursor.execute(stmt)
-    print("Summarized results of filtering: " + str(datetime.now() - filtersummarytime1))
+            summary['institutions'] = summary['institutions'] + [who]
 
-
-    ###############################################  INSERT INTO DB
-    ###############################################################
-    # Insert the records   !needs to assess if coord uncertainty is present
-    # and act accordingly because insert statement depends on if it's present!
-    inserttime1 = datetime.now()
-    for x in alloccsX:
-        try:
-            if 'coordinateUncertaintyInMeters' in x.keys() and x['coordinateUncertaintyInMeters'] > 0:
-                insert1 = []
-                insert1.append((x['gbifID'], species_id, 'gbif',
-                                x['decimalLatitude'], x['decimalLongitude'],
-                                x['coordinateUncertaintyInMeters'], x['eventDate'],
-                                gbif_req_id, gbif_filter_id,
-                                x['dataGeneralizations'], x['remarks']))
+            if who in value_summaries['institutions'].keys():
+                value_summaries['institutions'][who] += 1
             else:
-                insert1 = []
-                insert1.append((x['gbifID'], species_id, 'gbif',
-                                x['decimalLatitude'], x['decimalLongitude'],
-                                default_coordUncertainty, x['eventDate'],
-                                gbif_req_id, gbif_filter_id,
-                                x['dataGeneralizations'], x['remarks']))
-            insert1 = tuple(insert1)[0]
+                value_summaries['institutions'][who] = 1
 
-            sql1 = """INSERT INTO occurrences ('occ_id', 'species_id', 'source',
-                                               'latitude', 'longitude',
-                                               'coordinateUncertaintyInMeters',
-                                               'occurrenceDate', 'request_id',
-                                               'filter_id', 'generalizations',
-                                               'remarks')
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
-            cursor.executemany(sql1, [(insert1)])
-            
-        except Exception as e:
-            print("\nThere was a problem with the following record:")
-            print(e)
-            print(x)
-    print("Inserted records: " + str(datetime.now() - inserttime1))
-    
-    inserttime2 = datetime.now()
-    try:
-        sql2 = """UPDATE occurrences 
-                  SET geom_xy4326 = GeomFromText('POINT('||"longitude"||' '||"latitude"||')', 4326);"""
-        cursor.execute(sql2)
-    
-    except Exception as e:
-        print(e)
-    
-    print("Updated occurrences table geometry column: " + str(datetime.now() - inserttime2))
+            # collections
+            try:
+                co = occdict['collectionCode']
+            except:
+                co = 'UNKNOWN'
 
-                          
-    # Update the individual count when it exists
-    inserttime3 = datetime.now()                      
-    for e in alloccsX:
-        if 'individualCount' in e.keys():
+            summary['collections'] = summary['collections'] + [co]
+
+            if co in value_summaries['collections'].keys():
+                value_summaries['collections'][co] += 1
+            else:
+                value_summaries['collections'][co] = 1
+
+            # establishment means
+            try:
+                est = occdict['establishmentMeans']
+                summary['establishment'] = summary['establishment'] | set([est])
+            except:
+                pass
+
+            # identification qualifier
+            try:
+                qual = occdict['identificationQualifier']
+                summary['IDqualifier'] = summary['IDqualifier'] | set([qual])
+            except:
+                pass
+
+            # protocols -- NOTE this essentially combines two fields
+            try:
+                proto = occdict['protocol']
+            except:
+                proto = 'UNKNOWN'
+            summary['protocols'] = summary['protocols'] | set([proto])
+
+            if proto in value_summaries['protocols'].keys():
+                value_summaries['protocols'][proto] += 1
+            else:
+                value_summaries['protocols'][proto] = 1
+
+            try:
+                samproto = occdict['samplingProtocol']
+            except:
+                samproto = 'UKNOWN'
+            summary['protocols'] = summary['protocols'] | set([samproto])
+
+            if samproto in value_summaries['samplingProtocols'].keys():
+                value_summaries['samplingProtocols'][samproto] += 1
+            else:
+                value_summaries['samplingProtocols'][samproto] = 1
+
+        # Remove duplicates, make strings for entry into summary table of attributes
+        cursor.executescript("""CREATE TABLE record_attributes (step TEXT, field TEXT, vals TEXT);""")
+        for x in summary.keys():
+            vals = str(list(set(summary[x]))).replace('"', '')
+            stmt = """INSERT INTO record_attributes (step, field, vals)
+                      VALUES ("request", "{0}", "{1}");""".format(x, vals)
+            cursor.execute(stmt)
+
+        # Store the value summary for the selected fields in a table.
+        cursor.executescript("""CREATE TABLE post_request_value_counts
+                                (attribute TEXT, value TEXT, count INTEGER);""")
+        for x in value_summaries.keys():
+            attribute = value_summaries[x]
+            for y in value_summaries[x].keys():
+                z = value_summaries[x][y]
+                frog = """INSERT INTO post_request_value_counts (attribute, value, count)
+                          VALUES ("{0}", "{1}", "{2}")""".format(x,y,z)
+                cursor.execute(frog)
+        #print("\t Slow part 2 : " + str(datetime.now() - slow1))
+        print("Created summary table of request results: " + str(datetime.now() - requestsummarytime1))
+
+        ##################################################  FILTER MORE
+        ###############################################################
+        # Pull out relevant attributes from occurrence dictionaries.  Filtering
+        # will be performed with info from these keys.
+        filtertime1 = datetime.now()
+        keykeys = ['basisOfRecord', 'individualCount', 'acceptedTaxonKey',
+                   'scientificName', 'acceptedScientificName','taxonomicStatus',
+                   'decimalLongitude', 'decimalLatitude',
+                   'coordinateUncertaintyInMeters', 'year',
+                   'month', 'day', 'eventDate', 'issues','geodeticDatum',
+                   'gbifID', 'type', 'preparations', 'occurrenceStatus',
+                   'georeferenceProtocol', 'georeferenceVerificationStatus',
+                   'occurrenceID', 'dataGeneralizations', 'eventRemarks', 'locality',
+                   'locationRemarks', 'occurrenceRemarks', 'collectionCode',
+                   'protocol', 'samplingProtocol', 'institutionCode']
+        alloccs2 = []
+        for x in alloccs:
+            alloccs2.append(dict((y,x[y]) for y in x if y in keykeys))
+
+        # Combine remarks FIELDS
+        for x in alloccs2:
+            remarks = str()
+            try:
+                put = x['locality']
+                remarks = remarks + "; " + put
+            except:
+                pass
+
+            try:
+                these = x['eventRemarks']
+                remarks = remarks + "; " + these
+            except:
+                pass
+
+            try:
+                tog = x['locationRemarks']
+                remarks = remarks + "; " + tog
+            except:
+                pass
+
+            try:
+                ether = x['occurrenceRemarks']
+                remarks = remarks + ether
+            except:
+                pass
+
+            try:
+                x['remarks'] = remarks
+            except Exception as e:
+                x['remarks'] = ""
+
+        # Identify data generalizations
+        for x in alloccs2:
+            if 'dataGeneralizations' not in x.keys():
+                x['dataGeneralizations'] = ""
+
+        # HAS COORDINATE UNCERTAINTY
+        sql_green = """SELECT has_coordinate_uncertainty FROM gbif_filters
+                       WHERE filter_id = '{0}';""".format(gbif_filter_id)
+        filt_coordUncertainty = cursor2.execute(sql_green).fetchone()[0]
+
+        if filt_coordUncertainty == 1:
+            alloccs3 = [x for x in alloccs2 if 'coordinateUncertaintyInMeters'
+                        in x.keys()]
+        if filt_coordUncertainty == 0:
+            alloccs3 = alloccs2
+        del alloccs2
+
+        # MAXIMUM COORDINATE UNCERTAINTY
+        sql_maxcoord = """SELECT max_coordinate_uncertainty FROM gbif_filters
+                       WHERE filter_id = '{0}';""".format(gbif_filter_id)
+        filt_maxcoord = cursor2.execute(sql_maxcoord).fetchone()[0]
+        alloccs4 = []
+        for x in alloccs3:
+            if 'coordinateUncertaintyInMeters' not in x.keys():
+                alloccs4.append(x)
+            elif x['coordinateUncertaintyInMeters'] <= filt_maxcoord:
+                alloccs4.append(x)
+            else:
+                pass
+        del alloccs3
+
+        # COLLECTION CODES
+        sql_collection = """SELECT collection_codes_omit FROM gbif_filters
+                       WHERE filter_id = '{0}';""".format(gbif_filter_id)
+        filt_collection = cursor2.execute(sql_collection).fetchone()[0]
+        if type(filt_collection) == str:
+            filt_collection = list(filt_collection.split(', '))
+        else:
+            filt_collection = []
+
+        alloccs5 = []
+        for x in alloccs4:
+            if 'collectionCode' in x.keys():
+                if x['collectionCode'] not in list(filt_collection):
+                    alloccs5.append(x)
+                elif 'collectionCode' not in x.keys():
+                    alloccs5.append(x)
+                else:
+                    pass
+            else:
+                alloccs5.append(x)
+        del alloccs4
+
+        # INSTITUTIONS
+        sql_instit = """SELECT institutions_omit FROM gbif_filters
+                       WHERE filter_id = '{0}';""".format(gbif_filter_id)
+        filt_instit = cursor2.execute(sql_instit).fetchone()[0]
+        if type(filt_instit) == str:
+            filt_instit = list(filt_instit.split(', '))
+        else:
+            filt_instit = []
+
+        alloccs6 = []
+        for x in alloccs5:
+            if 'institutionCode' in x.keys():
+                if x['institutionCode'] not in filt_instit:
+                    alloccs6.append(x)
+            else:
+                alloccs6.append(x)
+        del alloccs5
+
+        # BASES
+        sql_bases = """SELECT bases_omit FROM gbif_filters
+                       WHERE filter_id = '{0}';""".format(gbif_filter_id)
+        filt_bases = cursor2.execute(sql_bases).fetchone()[0]
+        if type(filt_bases) == str:
+            filt_bases = list(filt_bases.split(', '))
+        else:
+            filt_bases = []
+
+        alloccs7 = []
+        for x in alloccs6:
+             if x['basisOfRecord'] not in list(filt_bases):
+                 alloccs7.append(x)
+             elif 'basisOfRecord' not in x.keys():
+                 alloccs7.append(x)
+             else:
+                 pass
+        del alloccs6
+
+        # PROTOCOLS
+        sql_protocols = """SELECT protocols_omit FROM gbif_filters
+                       WHERE filter_id = '{0}';""".format(gbif_filter_id)
+        filt_protocols = cursor2.execute(sql_protocols).fetchone()[0]
+        if type(filt_protocols) == str:
+            filt_protocols = list(filt_protocols.split(', '))
+        else:
+            filt_protocols = []
+
+        alloccs8 = []
+        for x in alloccs7:
+            if x['protocol'] not in filt_protocols:
+                alloccs8.append(x)
+            elif 'protocol' not in x.keys():
+                alloccs8.append(x)
+            else:
+                pass
+        del alloccs7
+
+        # ISSUES
+        sql_issues = """SELECT issues_omit FROM gbif_filters
+                       WHERE filter_id = '{0}';""".format(gbif_filter_id)
+        filt_issues = cursor2.execute(sql_issues).fetchone()[0]
+
+        if type(filt_issues) == str:
+            filt_issues = list(filt_issues.split(', '))
+        else:
+            filt_issues = []
+
+        alloccs9 = []
+        for x in alloccs8: # If none of list items are in issues omit list
+            if len(set(x['issues']) & set(filt_issues)) == 0:
+                alloccs9.append(x)
+            elif 'issues' not in x.keys():
+                alloccs9.append(x)
+            else:
+                pass
+        del alloccs8
+
+        # SAMPLING PROTOCOL
+        sql_sampling = """SELECT sampling_protocols_omit FROM gbif_filters
+                       WHERE filter_id = '{0}';""".format(gbif_filter_id)
+        filt_sampling = cursor2.execute(sql_sampling).fetchone()[0]
+        if type(filt_sampling) == str:
+            filt_sampling = list(filt_sampling.split(', '))
+        else:
+            filt_sampling = []
+
+        alloccsX = []
+        for x in alloccs9:
+            if 'samplingProtocol' in x.keys():
+                if x['samplingProtocol'] not in filt_sampling:
+                    alloccsX.append(x)
+            else:
+                alloccsX.append(x)
+        del alloccs9
+        print("Performed post-request filtering: " + str(datetime.now() - filtertime1))
+
+
+        ############################# SAVE SUMMARY OF VALUES KEPT (FILTER)
+        filtersummarytime1 = datetime.now()
+        summary2 = {'datums': ['WGS84'],
+                   'issues': set([]),
+                   'bases': [],
+                   'institutions': [],
+                   'collections': [],
+                   'generalizations': set([]),
+                   'remarks': set([]),
+                   'establishment': set([]),
+                   'IDqualifier': set([]),
+                   'protocols': set([])}
+
+        for occdict in alloccsX:
+            # datums
+            if occdict['geodeticDatum'] != 'WGS84':
+                summary2['datums'] = summary2['datums'] + occdict['geodeticDatum']
+            # issues
+            summary2['issues'] = summary2['issues'] | set(occdict['issues'])
+            # basis of record
+            BOR = occdict['basisOfRecord']
+            if BOR == "" or BOR == None:
+                summary2['bases'] = summary2['bases'] + ["UNKNOWN"]
+            else:
+                summary2['bases'] = summary2['bases'] + [BOR]
+            # institution
+            try:
+                try:
+                    who = occdict['institutionID']
+                    summary2['institutions'] = summary2['institutions'] + [who]
+                except:
+                    who = occdict['institutionCode']
+                    summary2['institutions'] = summary2['institutions'] + [who]
+            except:
+                summary2['institutions'] = summary2['institutions'] + ['UNKNOWN']
+            # collections
+            try:
+                co = occdict['collectionCode']
+                summary2['collections'] = summary2['collections'] + [co]
+            except:
+                pass
+            # establishment means
+            try:
+                est = occdict['establishmentMeans']
+                summary2['establishment'] = summary2['establishment'] | set([est])
+            except:
+                pass
+            # identification qualifier
+            try:
+                qual = occdict['identificationQualifier']
+                summary2['IDqualifier'] = summary2['IDqualifier'] | set([qual])
+            except:
+                pass
+            # protocols
+            try:
+                proto = occdict['protocol']
+                summary2['protocols'] = summary2['protocols'] | set([proto])
+            except:
+                pass
+            try:
+                samproto = occdict['samplingProtocol']
+                summary2['protocols'] = summary2['protocols'] | set([samproto])
+            except:
+                pass
+
+        # Remove duplicates, make strings for entry into table
+        for x in summary2.keys():
+            stmt = """INSERT INTO record_attributes (step, field, vals)
+                      VALUES ("filter", "{0}", "{1}");""".format(x, str(list(set(summary2[x]))).replace('"', ''))
+            cursor.execute(stmt)
+        print("Summarized results of filtering: " + str(datetime.now() - filtersummarytime1))
+
+
+        ###############################################  INSERT INTO DB
+        ###############################################################
+        # Insert the records   !needs to assess if coord uncertainty is present
+        # and act accordingly because insert statement depends on if it's present!
+        inserttime1 = datetime.now()
+        for x in alloccsX:
+            try:
+                if 'coordinateUncertaintyInMeters' in x.keys() and x['coordinateUncertaintyInMeters'] > 0:
+                    insert1 = []
+                    insert1.append((x['gbifID'], species_id, 'gbif',
+                                    x['decimalLatitude'], x['decimalLongitude'],
+                                    x['coordinateUncertaintyInMeters'], x['eventDate'],
+                                    gbif_req_id, gbif_filter_id,
+                                    x['dataGeneralizations'], x['remarks']))
+                else:
+                    insert1 = []
+                    insert1.append((x['gbifID'], species_id, 'gbif',
+                                    x['decimalLatitude'], x['decimalLongitude'],
+                                    default_coordUncertainty, x['eventDate'],
+                                    gbif_req_id, gbif_filter_id,
+                                    x['dataGeneralizations'], x['remarks']))
+                insert1 = tuple(insert1)[0]
+
+                sql1 = """INSERT INTO occurrences ('occ_id', 'species_id', 'source',
+                                                   'latitude', 'longitude',
+                                                   'coordinateUncertaintyInMeters',
+                                                   'occurrenceDate', 'request_id',
+                                                   'filter_id', 'generalizations',
+                                                   'remarks')
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
+                cursor.executemany(sql1, [(insert1)])
+
+            except Exception as e:
+                print("\nThere was a problem with the following record:")
+                print(e)
+                print(x)
+        print("Inserted records: " + str(datetime.now() - inserttime1))
+
+        inserttime2 = datetime.now()
+        try:
             sql2 = """UPDATE occurrences
-                SET individualCount = {0}
-                WHERE occ_id = {1};""".format(e['individualCount'], e['gbifID'])
+                      SET geom_xy4326 = GeomFromText('POINT('||"longitude"||' '||"latitude"||')', 4326);"""
             cursor.execute(sql2)
-    conn.commit()
-    print("Updated individuaCount column: " + str(datetime.now() - inserttime3))
+
+        except Exception as e:
+            print(e)
+
+        print("Updated occurrences table geometry column: " + str(datetime.now() - inserttime2))
+
+
+        # Update the individual count when it exists
+        inserttime3 = datetime.now()
+        for e in alloccsX:
+            if 'individualCount' in e.keys():
+                sql2 = """UPDATE occurrences
+                    SET individualCount = {0}
+                    WHERE occ_id = {1};""".format(e['individualCount'], e['gbifID'])
+                cursor.execute(sql2)
+        conn.commit()
+        print("Updated individuaCount column: " + str(datetime.now() - inserttime3))
+
+    # If more than 100,000 records then use the download function.
+    else:
+        d = occurrences.download(gbif_id,
+                                 limit=300,
+                                 offset=i,
+                                 year=years,
+                                 month=months,
+                                 decimalLatitude=latRange,
+                                 decimalLongitude=lonRange,
+                                 hasGeospatialIssue=geoIssue,
+                                 hasCoordinate=coordinate,
+                                 continent=continent,
+                                 country=country,
+                                 geometry=poly)
 
     ################################################  HANDLE DUPLICATES
     ###################################################################
