@@ -56,8 +56,8 @@ tkey = species.name_backbone(name = sciName, rank='species')['usageKey']
 # It returns a dictionary of results containing request parameters
 print("Getting the download key .....")
 res = occ.download(['taxonKey = {0}'.format(tkey), 'hasCoordinate = TRUE', 'country = US'],
-                    user='mo',
-                    pwd='wr',
+                    user='pythonprocessing@gmail.com',
+                    pwd='@re!!',
                     email='mo@ncsu.edu')
 
 # Get the value of the download key

@@ -293,6 +293,8 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     from shapely.wkt import dumps, loads
     from datetime import datetime
     import sys
+    import shutil
+    from dwca.read import DwCAReader
 
 
     # Environment variables need to be handled
@@ -369,9 +371,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                          UNIT["Meter",1],AUTHORITY["EPSG","102008"]]');''')
     conn.commit()
 
-
     ################################################# Create tables
-    ###############################################################
     sql_cdb = """
             /* Create a table for occurrence records, WITH GEOMETRY */
             CREATE TABLE IF NOT EXISTS occurrences (
@@ -401,14 +401,14 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     makedb2 = datetime.now()
     print("Created occurrence db: " + str(makedb2 - makedb1))
 
-    #############################################################################
-    #                              GBIF Records
-    #############################################################################
-    """
-    Retrieve GBIF records for a species and save appropriate
-    attributes in the occurrence db.
-    """
     requesttime1 = datetime.now()
+
+    #############################################################################
+    #                           Get Filters
+    #############################################################################
+    """
+    Retrieve filter parameters from the parameters database.
+    """
     ############################# RETRIEVE REQUEST PARAMETERS
     # Up-front filters are an opportunity to lighten the load from the start.
     sql_twi = """ SELECT lat_range FROM gbif_requests
@@ -467,10 +467,50 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         sp_polygon = shapely.wkt.loads(sp_geom)
         poly_intersection = filter_polygon.intersection(sp_polygon)
         poly = shapely.wkt.dumps(poly_intersection)
+
+    ###################  RETRIEVE POST-REQUEST FILTER PARAMTERS
+    sql_green = """SELECT has_coordinate_uncertainty FROM gbif_filters
+                   WHERE filter_id = '{0}';""".format(gbif_filter_id)
+    filt_coordUncertainty = cursor2.execute(sql_green).fetchone()[0]
+
+    sql_maxcoord = """SELECT max_coordinate_uncertainty FROM gbif_filters
+                   WHERE filter_id = '{0}';""".format(gbif_filter_id)
+    filt_maxcoord = cursor2.execute(sql_maxcoord).fetchone()[0]
+
+    sql_collection = """SELECT collection_codes_omit FROM gbif_filters
+                   WHERE filter_id = '{0}';""".format(gbif_filter_id)
+    filt_collection = cursor2.execute(sql_collection).fetchone()[0]
+
+    sql_instit = """SELECT institutions_omit FROM gbif_filters
+                   WHERE filter_id = '{0}';""".format(gbif_filter_id)
+    filt_instit = cursor2.execute(sql_instit).fetchone()[0]
+
+    sql_bases = """SELECT bases_omit FROM gbif_filters
+                   WHERE filter_id = '{0}';""".format(gbif_filter_id)
+    filt_bases = cursor2.execute(sql_bases).fetchone()[0]
+
+    sql_protocols = """SELECT protocols_omit FROM gbif_filters
+                   WHERE filter_id = '{0}';""".format(gbif_filter_id)
+    filt_protocols = cursor2.execute(sql_protocols).fetchone()[0]
+
+    sql_issues = """SELECT issues_omit FROM gbif_filters
+                   WHERE filter_id = '{0}';""".format(gbif_filter_id)
+    filt_issues = cursor2.execute(sql_issues).fetchone()[0]
+
+    sql_sampling = """SELECT sampling_protocols_omit FROM gbif_filters
+                   WHERE filter_id = '{0}';""".format(gbif_filter_id)
+    filt_sampling = cursor2.execute(sql_sampling).fetchone()[0]
+
     print("Got request params and sorted out geometry constraints: " + str(datetime.now() - requesttime1))
     requesttime2 = datetime.now()
 
-
+    #############################################################################
+    #                              GBIF Records
+    #############################################################################
+    """
+    Retrieve GBIF records for a species and save appropriate
+    attributes in the occurrence db.
+    """
     #################### REQUEST RECORDS ACCORDING TO REQUEST PARAMS
     # First, find out how many records there are that meet criteria
     occ_search = occurrences.search(gbif_id,
@@ -739,10 +779,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                 x['dataGeneralizations'] = ""
 
         # HAS COORDINATE UNCERTAINTY
-        sql_green = """SELECT has_coordinate_uncertainty FROM gbif_filters
-                       WHERE filter_id = '{0}';""".format(gbif_filter_id)
-        filt_coordUncertainty = cursor2.execute(sql_green).fetchone()[0]
-
         if filt_coordUncertainty == 1:
             alloccs3 = [x for x in alloccs2 if 'coordinateUncertaintyInMeters'
                         in x.keys()]
@@ -751,9 +787,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         del alloccs2
 
         # MAXIMUM COORDINATE UNCERTAINTY
-        sql_maxcoord = """SELECT max_coordinate_uncertainty FROM gbif_filters
-                       WHERE filter_id = '{0}';""".format(gbif_filter_id)
-        filt_maxcoord = cursor2.execute(sql_maxcoord).fetchone()[0]
         alloccs4 = []
         for x in alloccs3:
             if 'coordinateUncertaintyInMeters' not in x.keys():
@@ -765,9 +798,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         del alloccs3
 
         # COLLECTION CODES
-        sql_collection = """SELECT collection_codes_omit FROM gbif_filters
-                       WHERE filter_id = '{0}';""".format(gbif_filter_id)
-        filt_collection = cursor2.execute(sql_collection).fetchone()[0]
         if type(filt_collection) == str:
             filt_collection = list(filt_collection.split(', '))
         else:
@@ -787,9 +817,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         del alloccs4
 
         # INSTITUTIONS
-        sql_instit = """SELECT institutions_omit FROM gbif_filters
-                       WHERE filter_id = '{0}';""".format(gbif_filter_id)
-        filt_instit = cursor2.execute(sql_instit).fetchone()[0]
         if type(filt_instit) == str:
             filt_instit = list(filt_instit.split(', '))
         else:
@@ -805,9 +832,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         del alloccs5
 
         # BASES
-        sql_bases = """SELECT bases_omit FROM gbif_filters
-                       WHERE filter_id = '{0}';""".format(gbif_filter_id)
-        filt_bases = cursor2.execute(sql_bases).fetchone()[0]
         if type(filt_bases) == str:
             filt_bases = list(filt_bases.split(', '))
         else:
@@ -824,9 +848,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         del alloccs6
 
         # PROTOCOLS
-        sql_protocols = """SELECT protocols_omit FROM gbif_filters
-                       WHERE filter_id = '{0}';""".format(gbif_filter_id)
-        filt_protocols = cursor2.execute(sql_protocols).fetchone()[0]
         if type(filt_protocols) == str:
             filt_protocols = list(filt_protocols.split(', '))
         else:
@@ -843,10 +864,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         del alloccs7
 
         # ISSUES
-        sql_issues = """SELECT issues_omit FROM gbif_filters
-                       WHERE filter_id = '{0}';""".format(gbif_filter_id)
-        filt_issues = cursor2.execute(sql_issues).fetchone()[0]
-
         if type(filt_issues) == str:
             filt_issues = list(filt_issues.split(', '))
         else:
@@ -863,9 +880,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         del alloccs8
 
         # SAMPLING PROTOCOL
-        sql_sampling = """SELECT sampling_protocols_omit FROM gbif_filters
-                       WHERE filter_id = '{0}';""".format(gbif_filter_id)
-        filt_sampling = cursor2.execute(sql_sampling).fetchone()[0]
         if type(filt_sampling) == str:
             filt_sampling = list(filt_sampling.split(', '))
         else:
@@ -1018,6 +1032,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
 
     # If more than 100,000 records then use the download function.
     else:
+        # Make the data request
         d = occurrences.download(gbif_id,
                                  limit=300,
                                  offset=i,
@@ -1030,6 +1045,14 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                                  continent=continent,
                                  country=country,
                                  geometry=poly)
+        # Summary table of keys/fields returned
+        # Summary lists of values returned and count per value - save in db
+        # filter post-request
+        # summarize kept again - save in db
+        # insert
+        # make geomfromtext
+        # update individual count
+
 
     ################################################  HANDLE DUPLICATES
     ###################################################################
