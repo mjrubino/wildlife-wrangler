@@ -253,7 +253,7 @@ def getGBIFcode(name, rank='species'):
 
 def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                               gbif_filter_id, default_coordUncertainty, SRID_dict,
-                              outDir, summary_name):
+                              outDir, summary_name, username, password, email):
     """
     Retrieves GAP range from ScienceBase and occurrence records from APIs. Filters
     occurrence records, stores them in a database, buffers the xy points,
@@ -1032,19 +1032,48 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
 
     # If more than 100,000 records then use the download function.
     else:
-        # Make the data request
-        d = occurrences.download(gbif_id,
-                                 limit=300,
-                                 offset=i,
-                                 year=years,
-                                 month=months,
-                                 decimalLatitude=latRange,
-                                 decimalLongitude=lonRange,
-                                 hasGeospatialIssue=geoIssue,
-                                 hasCoordinate=coordinate,
-                                 continent=continent,
-                                 country=country,
-                                 geometry=poly)
+        # Make the data request using the download function.  Results are
+        # emailed.
+        d = occurrences.download(['taxonKey = {0}'.format(gbif_id),
+                                  'year = {0}'.format(years),
+                                  'month = {0}'.format(months),
+                                  'decimalLatitude = {0}'.format(latRange),
+                                  'decimalLongitude = {0}'.format(lonRange),
+                                  'hasGeospatialIssue = {0}'.format(geoIssue),
+                                  'hasCoordinate = {0}'.format(coordinate),
+                                  'continent = {0}'.format(continent),
+                                  'country = {0}'.format(country),
+                                  'geometry = {0}'.format(poly)],
+                                   pred_type = 'and',
+                                   user = username,
+                                   pwd = password,
+                                   email = email)
+
+        # Get the value of the download key
+        dkey = d[0]
+
+        # Now download the actual zip file containing the Darwin Core files
+        '''
+         NOTE:
+             The download can take a while to generate and is not immediately
+             available once the download_get command has been issued. Use a
+             while and try loop to make sure the download has succeeded.
+             The zipdownload variable will be a dictionary of the path,
+             the file size, and the download key unique code. It can be used
+             to change the file name, unzip the file, etc.
+        '''
+
+        print("Attempting to download the Darwin Core Archive zip file for this species .....")
+        gotit = None
+        while gotit is None:
+            try:
+                zipdownload = occurrences.download_get(key=dkey,path=downDir)
+                gotit = 1
+            except:
+                pass
+
+enter starting at line 90 to the right.
+
         # Summary table of keys/fields returned
         # Summary lists of values returned and count per value - save in db
         # filter post-request
