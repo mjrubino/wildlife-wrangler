@@ -1034,7 +1034,8 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     else:
         # Make the data request using the download function.  Results are
         # emailed.
-        d = occurrences.download(['taxonKey = {0}'.format(gbif_id),
+        '''  SLOWLY START BY ADDING THIS BACK IN TO FIND THE PROBLEM
+        d = occurrences.download([
                                   'year = {0}'.format(years),
                                   'month = {0}'.format(months),
                                   'decimalLatitude = {0}'.format(latRange),
@@ -1043,8 +1044,11 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                                   'hasCoordinate = {0}'.format(coordinate),
                                   'continent = {0}'.format(continent),
                                   'country = {0}'.format(country),
-                                  'geometry = {0}'.format(poly)],
-                                   pred_type = 'and',
+                                  'geometry = {0}'.format(poly),
+                                  ]
+
+        '''
+        d = occurrences.download(['taxonKey = {0}'.format(gbif_id)],
                                    user = username,
                                    pwd = password,
                                    email = email)
@@ -1063,16 +1067,27 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
              to change the file name, unzip the file, etc.
         '''
 
-        print("Attempting to download the Darwin Core Archive zip file for this species .....")
+        print("Downloading Darwin Core Archive zip file for this species .....")
         gotit = None
         while gotit is None:
             try:
-                zipdownload = occurrences.download_get(key=dkey,path=downDir)
+                zipdownload = occurrences.download_get(key=dkey,path=inDir)
                 gotit = 1
             except:
                 pass
 
-enter starting at line 90 to the right.
+        # Read the "occurrence.txt" file into a Pandas dataframe
+        with DwCAReader(inDir + dkey + '.zip') as dwca:
+            print(' Reading occurrence records into Pandas dataframe ....')
+            dfOcc = dwca.pd_read('occurrence.txt', parse_dates=True)
+
+        dfOcc.to_csv("T:/temp/dfOcc.csv")
+        return
+
+
+
+
+
 
         # Summary table of keys/fields returned
         # Summary lists of values returned and count per value - save in db
