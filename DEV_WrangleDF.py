@@ -28,7 +28,31 @@ summary = {'datums': ['WGS84'],
            'establishment': set([]),
            'IDqualifier': set([]),
            'protocols': set([])}
+
+
+value_summaries = {'bases': {},
+                  'datums': {'WGS84': 0},
+                  'issues': {},
+                  'institutions': {},
+                  'collections': {},
+                  'protocols': {},
+                  'samplingProtocols': {}}
+
+
 print(df0.columns)
-for x in summary.keys():
-    print(x)
-    print(set(df0[x]))
+
+
+print(set(df0['geodeticDatum']))
+
+
+"""
+# datums
+if occdict['geodeticDatum'] != 'WGS84':
+    summary['datums'] = summary['datums'] + occdict['geodeticDatum']
+    if occdict['geodeticDatum'] not in value_summaries['datums'].keys():
+        value_summaries['datums'][occdict['geodeticDatum']] = 0
+    else:
+        value_summaries['datums'][occdict['geodeticDatum']] += 1
+if occdict['geodeticDatum'] == 'WGS84':
+    value_summaries['datums']['WGS84'] += 1
+"""

@@ -390,6 +390,8 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                     remarks TEXT,
                     detection_distance INTEGER,
                     radius_meters INTEGER,
+                    omit INTEGER DEFAULT 0,
+                    omit_notes TEXT,
                         FOREIGN KEY (species_id) REFERENCES taxa(species_id)
                         ON UPDATE RESTRICT
                         ON DELETE NO ACTION);
