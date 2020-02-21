@@ -1038,20 +1038,20 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         # emailed.
         '''  SLOWLY START BY ADDING THIS BACK IN TO FIND THE PROBLEM
         d = occurrences.download([
-
+                                  'year = {0}'.format(years)
                                   'month = {0}'.format(months),
-                                  'decimalLatitude = {0}'.format(latRange),
-                                  'decimalLongitude = {0}'.format(lonRange),
                                   'hasGeospatialIssue = {0}'.format(geoIssue),
                                   'hasCoordinate = {0}'.format(coordinate),
                                   'continent = {0}'.format(continent),
-                                  'country = {0}'.format(country),
+
                                   'geometry = {0}'.format(poly),
+                                  'decimalLatitude = {0}'.format(latRange),
+                                  'decimalLongitude = {0}'.format(lonRange)
                                   ]
 
         '''
         d = occurrences.download(['taxonKey = {0}'.format(gbif_id),
-                                  'year = {0}'.format(years)],
+                                  'country = {0}'.format(country)],
                                    user = username,
                                    pwd = password,
                                    email = email)
