@@ -439,12 +439,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                   WHERE request_id = '{0}'""".format(gbif_req_id)
     coordinate = cursor2.execute(sql_twi).fetchone()[0]
 
-    sql_twi = """ SELECT continent FROM gbif_requests
-                  WHERE request_id = '{0}'""".format(gbif_req_id)
-    continent = cursor2.execute(sql_twi).fetchone()[0]
-    if continent == "None":
-        continent = None
-
     sql_twi = """ SELECT country FROM gbif_requests
                   WHERE request_id = '{0}'""".format(gbif_req_id)
     country = cursor2.execute(sql_twi).fetchone()[0]
@@ -522,7 +516,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                                     decimalLongitude=lonRange,
                                     hasGeospatialIssue=geoIssue,
                                     hasCoordinate=coordinate,
-                                    continent=continent,
                                     country=country,
                                     geometry=poly)
     occ_count=occ_search['count']
@@ -543,7 +536,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                                           decimalLongitude=lonRange,
                                           hasGeospatialIssue=geoIssue,
                                           hasCoordinate=coordinate,
-                                          continent=continent,
                                           country=country,
                                           geometry=poly)
             occs = occ_json['results']
@@ -1042,8 +1034,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                                   'month = {0}'.format(months),
                                   'hasGeospatialIssue = {0}'.format(geoIssue),
                                   'hasCoordinate = {0}'.format(coordinate),
-                                  'continent = {0}'.format(continent),
-
                                   'geometry = {0}'.format(poly),
                                   'decimalLatitude = {0}'.format(latRange),
                                   'decimalLongitude = {0}'.format(lonRange)
