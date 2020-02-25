@@ -1012,7 +1012,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
 
         print("Updated occurrences table geometry column: " + str(datetime.now() - inserttime2))
 
-
         # Update the individual count when it exists
         inserttime3 = datetime.now()
         for e in alloccsX:
@@ -1024,42 +1023,60 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         conn.commit()
         print("Updated individuaCount column: " + str(datetime.now() - inserttime3))
 
+    ############################################################################
+    ############################################################################
     # If more than 100,000 records then use the download function.
     else:
         # Make the data request using the download function.  Results are
-        # emailed.
-        '''  SLOWLY START BY ADDING THIS BACK IN TO FIND THE PROBLEM
-        d = occurrences.download([
-                                  'year = {0}'.format(years)
-                                  'month = {0}'.format(months),
-                                  'hasGeospatialIssue = {0}'.format(geoIssue),
-                                  'hasCoordinate = {0}'.format(coordinate),
-                                  'geometry = {0}'.format(poly),
-                                  'decimalLatitude = {0}'.format(latRange),
-                                  'decimalLongitude = {0}'.format(lonRange)
-                                  ]
+        # emailed.  NoneType values cause problems, so only add arguments if
+        # their value isn't NoneType.
+        download_filters = ['taxonKey = {0}'.format(gbif_id)]
 
-        '''
-        d = occurrences.download(['taxonKey = {0}'.format(gbif_id),
-                                  'country = {0}'.format(country)],
-                                   user = username,
-                                   pwd = password,
-                                   email = email)
+        if coordinate != None:
+            download_filters.append('hasCoordinate = {0}'.format(coordinate))
+
+        if country != None:
+            download_filters.append('country = {0}'.format(country))
+
+        if years != None:
+            download_filters.append('year >= {0}'.format(years.split(",")[0]))
+            download_filters.append('year <= {0}'.format(years.split(",")[1]))
+
+        if months != None:
+            download_filters.append('month >= {0}'.format(months.split(",")[0]))
+            download_filters.append('month <= {0}'.format(months.split(",")[1]))
+
+        if poly != None:
+            download_filters.append('geometry within {0}'.format(poly))
+
+        if geoIssue != None:
+            download_filters.append('hasGeospatialIssue = {0}'.format(geoIssue))
+
+        if latRange != None:
+            download_filters.append('decimalLatitude >= {0}'.format(latRange.split(",")[0]))
+            download_filters.append('decimalLatitude <= {0}'.format(latRange.split(",")[1]))
+        if lonRange !=None:
+            download_filters.append('decimalLongitude >= {0}'.format(lonRange.split(",")[0]))
+            download_filters.append('decimalLongitude <= {0}'.format(lonRange.split(",")[1]))
+
+        print(download_filters)
+        d = occurrences.download(download_filters,
+                                 pred_type='and',
+                                 user = username,
+                                 pwd = password,
+                                 email = email)
 
         # Get the value of the download key
         dkey = d[0]
 
         # Now download the actual zip file containing the Darwin Core files
-        '''
-         NOTE:
-             The download can take a while to generate and is not immediately
-             available once the download_get command has been issued. Use a
-             while and try loop to make sure the download has succeeded.
-             The zipdownload variable will be a dictionary of the path,
-             the file size, and the download key unique code. It can be used
-             to change the file name, unzip the file, etc.
-        '''
-
+        #
+        # NOTE: The download can take a while to generate and is not immediately
+        # available once the download_get command has been issued. Use a
+        # while and try loop to make sure the download has succeeded.
+        # The zipdownload variable will be a dictionary of the path,
+        # the file size, and the download key unique code. It can be used
+        # to change the file name, unzip the file, etc.
         print("Downloading Darwin Core Archive zip file for this species .....")
         gotit = None
         while gotit is None:
@@ -1074,6 +1091,12 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
             print(' Reading occurrence records into Pandas dataframe ....')
             dfOcc = dwca.pd_read('occurrence.txt', parse_dates=True)
 
+
+
+
+
+
+        print("saving")
         dfOcc.to_csv("T:/temp/dfOcc.csv")
         return
 

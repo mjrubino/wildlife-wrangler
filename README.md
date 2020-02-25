@@ -40,6 +40,8 @@ This framework is designed to have certain features in order to provide summarie
 * Handling duplicate records on the bases of x y coordinates and date-time
 * Added ability to specify a limiting extent for a species concept.
 * Increased process speed by 2,300%.
+* Removed "continent" request parameter because it was unreliable.
+* Occurrence record database (output) now includes column for omitting a specific record that users can populate as needed.  Problematic records that made it through filters can be identified and flagged.
 
 ## Coming soon
 * Handling requests of > 200,000 records.
