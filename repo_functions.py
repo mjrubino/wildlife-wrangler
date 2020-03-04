@@ -371,8 +371,8 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                     remarks TEXT,
                     detection_distance INTEGER,
                     radius_meters INTEGER,
-                    omit INTEGER DEFAULT 0,
-                    omit_notes TEXT,
+                    weight INTEGER DEFAULT 0,
+                    weight_notes TEXT,
                         FOREIGN KEY (species_id) REFERENCES taxa(species_id)
                         ON UPDATE RESTRICT
                         ON DELETE NO ACTION);
@@ -457,26 +457,50 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     sql_collection = """SELECT collection_codes_omit FROM gbif_filters
                    WHERE filter_id = '{0}';""".format(gbif_filter_id)
     filt_collection = cursor2.execute(sql_collection).fetchone()[0]
+    if type(filt_collection) == str:
+        filt_collection = list(filt_collection.split(', '))
+    else:
+        filt_collection = []
 
     sql_instit = """SELECT institutions_omit FROM gbif_filters
                    WHERE filter_id = '{0}';""".format(gbif_filter_id)
     filt_instit = cursor2.execute(sql_instit).fetchone()[0]
+    if type(filt_instit) == str:
+        filt_instit = list(filt_instit.split(', '))
+    else:
+        filt_instit = []
 
     sql_bases = """SELECT bases_omit FROM gbif_filters
                    WHERE filter_id = '{0}';""".format(gbif_filter_id)
     filt_bases = cursor2.execute(sql_bases).fetchone()[0]
+    if type(filt_bases) == str:
+        filt_bases = list(filt_bases.split(', '))
+    else:
+        filt_bases = []
 
     sql_protocols = """SELECT protocols_omit FROM gbif_filters
                    WHERE filter_id = '{0}';""".format(gbif_filter_id)
     filt_protocols = cursor2.execute(sql_protocols).fetchone()[0]
+    if type(filt_protocols) == str:
+        filt_protocols = list(filt_protocols.split(', '))
+    else:
+        filt_protocols = []
 
     sql_issues = """SELECT issues_omit FROM gbif_filters
                    WHERE filter_id = '{0}';""".format(gbif_filter_id)
     filt_issues = cursor2.execute(sql_issues).fetchone()[0]
+    if type(filt_issues) == str:
+        filt_issues = list(filt_issues.split(', '))
+    else:
+        filt_issues = []
 
     sql_sampling = """SELECT sampling_protocols_omit FROM gbif_filters
                    WHERE filter_id = '{0}';""".format(gbif_filter_id)
     filt_sampling = cursor2.execute(sql_sampling).fetchone()[0]
+    if type(filt_sampling) == str:
+        filt_sampling = list(filt_sampling.split(', '))
+    else:
+        filt_sampling = []
 
     print("Got request params and sorted out geometry constraints: " + str(datetime.now() - requesttime1))
     requesttime2 = datetime.now()
@@ -773,11 +797,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         del alloccs3
 
         # COLLECTION CODES
-        if type(filt_collection) == str:
-            filt_collection = list(filt_collection.split(', '))
-        else:
-            filt_collection = []
-
         alloccs5 = []
         for x in alloccs4:
             if 'collectionCode' in x.keys():
@@ -792,11 +811,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         del alloccs4
 
         # INSTITUTIONS
-        if type(filt_instit) == str:
-            filt_instit = list(filt_instit.split(', '))
-        else:
-            filt_instit = []
-
         alloccs6 = []
         for x in alloccs5:
             if 'institutionCode' in x.keys():
@@ -807,11 +821,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         del alloccs5
 
         # BASES
-        if type(filt_bases) == str:
-            filt_bases = list(filt_bases.split(', '))
-        else:
-            filt_bases = []
-
         alloccs7 = []
         for x in alloccs6:
              if x['basisOfRecord'] not in list(filt_bases):
@@ -823,11 +832,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         del alloccs6
 
         # PROTOCOLS
-        if type(filt_protocols) == str:
-            filt_protocols = list(filt_protocols.split(', '))
-        else:
-            filt_protocols = []
-
         alloccs8 = []
         for x in alloccs7:
             if x['protocol'] not in filt_protocols:
@@ -839,11 +843,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         del alloccs7
 
         # ISSUES
-        if type(filt_issues) == str:
-            filt_issues = list(filt_issues.split(', '))
-        else:
-            filt_issues = []
-
         alloccs9 = []
         for x in alloccs8: # If none of list items are in issues omit list
             if len(set(x['issues']) & set(filt_issues)) == 0:
@@ -855,11 +854,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         del alloccs8
 
         # SAMPLING PROTOCOL
-        if type(filt_sampling) == str:
-            filt_sampling = list(filt_sampling.split(', '))
-        else:
-            filt_sampling = []
-
         alloccsX = []
         for x in alloccs9:
             if 'samplingProtocol' in x.keys():

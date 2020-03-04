@@ -35,7 +35,6 @@ summary = {'datums': ['WGS84'],
            'IDqualifier': set([]),
            'protocols': set([])}
 
-
 value_summaries = {'bases': {},
                   'datums': {'WGS84': 0},
                   'issues': {},
@@ -106,8 +105,34 @@ for x in value_counts.keys():
 #print("\t Slow part 2 : " + str(datetime.now() - slow1))
 print("Created summary table of request results: " + str(datetime.now() - requestsummarytime1))
 
-###########
-for x in df0.columns:
-    if 'abstract' in x:
-        print(x)
-###########
+
+##################################################  POST REQUEST FILTERING
+##########################################################################
+# New colummn for compiled remarks and notes
+df0["remarks"] = df0['locality'] + ";" + df0['eventRemarks'] + ";" + df0['locationRemarks'] + ";" + df0['occurrenceRemarks']
+
+# HAS COORDINATE UNCERTAINTY
+if filt_coordUncertainty == 1:
+    df1 = df0[pd.isnull(df0['coordinateUncertaintyInMeters']) == False]
+if filt_coordUncertainty == 0:
+    df1 = df0
+# OTHER FILTERS
+df2 = df1[df1['coordinateUncertaintyInMeters'] <= filt_maxcoord]
+del df1
+df3 = df2[df2['collectionCode'].isin(filt_collection) == False]
+del df2
+df4 = df3[df3['institutionCode'].isin(filt_instit) == False]
+del df3
+df5 = df4[df4['basisOfRecord'].isin(filt_bases) == False]
+del df4
+df6 = df5[df5['protocol'].isin(filt_bases) == False]
+del df5
+df7 = df6[df6['samplingProtocol'].isin(filt_sampling) == False]]
+del df6
+# ISSUES - this one is more complex because multiple issues can be listed per record
+# Method used is complex, but hopefully faster than simple iteration over all records
+unique_issue = df7['issue'].unique() # List of unique issue entries
+violations = [x for x in unique_issue if len(set(x.split(";")) & set(filt_issues)) == 0] # entries that contain violations
+df8 = df7[df7['issue'].isin(violations) == False] # Records without entries that are violations.
+
+print("Performed post-request filtering: " + str(datetime.now() - filtertime1))
