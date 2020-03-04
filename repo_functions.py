@@ -264,7 +264,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     2.  Can we use EPSG:5070?
     3.  Account for possiblity of non-4326 occurrence records in gbif? Solution
         would be to transform before entering into database.
-    4. Make platform flexible
 
     Arguments:
     codeDir -- directory of this code repo.
@@ -349,26 +348,8 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     conn.execute('SELECT load_extension("mod_spatialite")')
     cursor = conn.cursor()
 
-    # Make database spatial and add the spatial reference system that GAP used
-    conn.executescript('''SELECT InitSpatialMetaData(1);
-
-                         INSERT into spatial_ref_sys
-                         (srid, auth_name, auth_srid, proj4text, srtext)
-                         values (102008, 'ESRI', 102008, '+proj=aea +lat_1=20 +lat_2=60
-                         +lat_0=40 +lon_0=-96 +x_0=0 +y_0=0 +datum=NAD83 +units=m
-                         +no_defs ', 'PROJCS["North_America_Albers_Equal_Area_Conic",
-                         GEOGCS["GCS_North_American_1983",
-                         DATUM["North_American_Datum_1983",
-                         SPHEROID["GRS_1980",6378137,298.257222101]],
-                         PRIMEM["Greenwich",0],UNIT["Degree",0.017453292519943295]],
-                         PROJECTION["Albers_Conic_Equal_Area"],
-                         PARAMETER["False_Easting",0],
-                         PARAMETER["False_Northing",0],
-                         PARAMETER["longitude_of_center",-96],
-                         PARAMETER["Standard_Parallel_1",20],
-                         PARAMETER["Standard_Parallel_2",60],
-                         PARAMETER["latitude_of_center",40],
-                         UNIT["Meter",1],AUTHORITY["EPSG","102008"]]');''')
+    # Make database spatial
+    conn.executescript('''SELECT InitSpatialMetaData(1);''')
     conn.commit()
 
     ################################################# Create tables
@@ -591,7 +572,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                    'IDqualifier': set([]),
                    'protocols': set([])}
 
-        value_summaries = {'bases': {},
+        value_counts = {'bases': {},
                           'datums': {'WGS84': 0},
                           'issues': {},
                           'institutions': {},
@@ -603,20 +584,20 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
             # datums
             if occdict['geodeticDatum'] != 'WGS84':
                 summary['datums'] = summary['datums'] + occdict['geodeticDatum']
-                if occdict['geodeticDatum'] not in value_summaries['datums'].keys():
-                    value_summaries['datums'][occdict['geodeticDatum']] = 0
+                if occdict['geodeticDatum'] not in value_counts['datums'].keys():
+                    value_counts['datums'][occdict['geodeticDatum']] = 0
                 else:
-                    value_summaries['datums'][occdict['geodeticDatum']] += 1
+                    value_counts['datums'][occdict['geodeticDatum']] += 1
             if occdict['geodeticDatum'] == 'WGS84':
-                value_summaries['datums']['WGS84'] += 1
+                value_counts['datums']['WGS84'] += 1
 
             # issues
             summary['issues'] = summary['issues'] | set(occdict['issues'])
             for issue in occdict['issues']:
-                if issue not in value_summaries['issues'].keys():
-                    value_summaries['issues'][issue] = 1
-                if issue in value_summaries['issues'].keys():
-                    value_summaries['issues'][issue] += 1
+                if issue not in value_counts['issues'].keys():
+                    value_counts['issues'][issue] = 1
+                if issue in value_counts['issues'].keys():
+                    value_counts['issues'][issue] += 1
 
             # basis or record
             BOR = occdict['basisOfRecord']
@@ -624,10 +605,10 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                 BOR = 'UNKNOWN'
             summary['bases'] = summary['bases'] + [BOR]
 
-            if BOR in value_summaries['bases'].keys():
-                value_summaries['bases'][BOR] += 1
+            if BOR in value_counts['bases'].keys():
+                value_counts['bases'][BOR] += 1
             else:
-                value_summaries['bases'][BOR] = 1
+                value_counts['bases'][BOR] = 1
 
             # institution
             try:
@@ -640,10 +621,10 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
 
             summary['institutions'] = summary['institutions'] + [who]
 
-            if who in value_summaries['institutions'].keys():
-                value_summaries['institutions'][who] += 1
+            if who in value_counts['institutions'].keys():
+                value_counts['institutions'][who] += 1
             else:
-                value_summaries['institutions'][who] = 1
+                value_counts['institutions'][who] = 1
 
             # collections
             try:
@@ -653,10 +634,10 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
 
             summary['collections'] = summary['collections'] + [co]
 
-            if co in value_summaries['collections'].keys():
-                value_summaries['collections'][co] += 1
+            if co in value_counts['collections'].keys():
+                value_counts['collections'][co] += 1
             else:
-                value_summaries['collections'][co] = 1
+                value_counts['collections'][co] = 1
 
             # establishment means
             try:
@@ -679,10 +660,10 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                 proto = 'UNKNOWN'
             summary['protocols'] = summary['protocols'] | set([proto])
 
-            if proto in value_summaries['protocols'].keys():
-                value_summaries['protocols'][proto] += 1
+            if proto in value_counts['protocols'].keys():
+                value_counts['protocols'][proto] += 1
             else:
-                value_summaries['protocols'][proto] = 1
+                value_counts['protocols'][proto] = 1
 
             try:
                 samproto = occdict['samplingProtocol']
@@ -690,10 +671,10 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                 samproto = 'UKNOWN'
             summary['protocols'] = summary['protocols'] | set([samproto])
 
-            if samproto in value_summaries['samplingProtocols'].keys():
-                value_summaries['samplingProtocols'][samproto] += 1
+            if samproto in value_counts['samplingProtocols'].keys():
+                value_counts['samplingProtocols'][samproto] += 1
             else:
-                value_summaries['samplingProtocols'][samproto] = 1
+                value_counts['samplingProtocols'][samproto] = 1
 
         # Remove duplicates, make strings for entry into summary table of attributes
         cursor.executescript("""CREATE TABLE record_attributes (step TEXT, field TEXT, vals TEXT);""")
@@ -706,10 +687,10 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         # Store the value summary for the selected fields in a table.
         cursor.executescript("""CREATE TABLE post_request_value_counts
                                 (attribute TEXT, value TEXT, count INTEGER);""")
-        for x in value_summaries.keys():
-            attribute = value_summaries[x]
-            for y in value_summaries[x].keys():
-                z = value_summaries[x][y]
+        for x in value_counts.keys():
+            attribute = value_counts[x]
+            for y in value_counts[x].keys():
+                z = value_counts[x][y]
                 frog = """INSERT INTO post_request_value_counts (attribute, value, count)
                           VALUES ("{0}", "{1}", "{2}")""".format(x,y,z)
                 cursor.execute(frog)
@@ -1085,12 +1066,15 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                 gotit = 1
             except:
                 pass
+        print("Download complete")
+
 
         # Read the "occurrence.txt" file into a Pandas dataframe
         with DwCAReader(inDir + dkey + '.zip') as dwca:
             print(' Reading occurrence records into Pandas dataframe ....')
-            dfOcc = dwca.pd_read('occurrence.txt', parse_dates=True)
+            dfOcc = dwca.pd_read('occurrence.txt')#, parse_dates=True)
 
+        # Filter out unneccesary columns
 
 
 
@@ -1184,20 +1168,20 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     cursor.executescript(sql_det)
 
     sql_buf = """
-            /* Transform to albers (102008) and apply buffer */
-            ALTER TABLE occurrences ADD COLUMN circle_albers BLOB;
+            /* Transform to albers (5070) and apply buffer */
+            ALTER TABLE occurrences ADD COLUMN circle_5070 BLOB;
 
-            UPDATE occurrences SET circle_albers = Buffer(Transform(geom_xy4326,
-                                                                    102008),
+            UPDATE occurrences SET circle_5070 = Buffer(Transform(geom_xy4326,
+                                                                    5070),
                                                           radius_meters);
 
-            SELECT RecoverGeometryColumn('occurrences', 'circle_albers', 102008,
+            SELECT RecoverGeometryColumn('occurrences', 'circle_5070', 5070,
                                          'POLYGON', 'XY');
 
             /* Transform back to WGS84 so it can be displayed in iPython */
             ALTER TABLE occurrences ADD COLUMN circle_wgs84 BLOB;
 
-            UPDATE occurrences SET circle_wgs84 = Transform(circle_albers, 4326);
+            UPDATE occurrences SET circle_wgs84 = Transform(circle_5070, 4326);
 
             SELECT RecoverGeometryColumn('occurrences', 'circle_wgs84', 4326,
                                          'POLYGON', 'XY');
