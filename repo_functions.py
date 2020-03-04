@@ -506,13 +506,13 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     requesttime2 = datetime.now()
 
     #############################################################################
-    #                              GBIF Records
+    #                          Get GBIF Records
     #############################################################################
     """
     Retrieve GBIF records for a species and save appropriate
     attributes in the occurrence db.
     """
-    #################### REQUEST RECORDS ACCORDING TO REQUEST PARAMS
+    ####################################### HOW MANY RECORDS EXIST TO PULL FROM?
     # First, find out how many records there are that meet criteria
     occ_search = occurrences.search(gbif_id,
                                     year=years,
@@ -526,7 +526,8 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     occ_count=occ_search['count']
     print(str(occ_count) + " records available")
 
-    # If there are fewer than 100,000 records, then just retrieve json in batches
+    ########################################### LESS THAN 100,000 RECORDS (JSON)
+    ############################################################################
     if occ_count <100000:
         # Get occurrences in batches, saving into master list
         alloccs = []
@@ -549,7 +550,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         print("Downloaded records: " + str(datetime.now() - requesttime2))
         print('\t{0} records exist with the request parameters'.format(occ_count))
 
-        ######################### CREATE SUMMARY TABLE OF KEYS/FIELDS RETURNED
+        ##########################  SUMMARY TABLE OF KEYS/FIELDS RETURNED (JSON)
         """                                                                         ### TOO SLOW
         keys = [list(x.keys()) for x in alloccs]
         keys2 = set([])
@@ -583,8 +584,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         dfK.to_sql(name='gbif_fields_returned', con=conn, if_exists='replace')
         """
 
-
-        ############################# SAVE SUMMARY OF VALUES RETURNED (REQUEST)
+        ############################# SUMMARY OF VALUES RETURNED (JSON; REQUEST)
         summary = {'datums': ['WGS84'],
                    'issues': set([]),
                    'bases': [],
@@ -721,8 +721,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         #print("\t Slow part 2 : " + str(datetime.now() - slow1))
         print("Created summary table of request results: " + str(datetime.now() - requestsummarytime1))
 
-        ##################################################  FILTER MORE
-        ###############################################################
+        #########################################################  FILTER (JSON)
         # Pull out relevant attributes from occurrence dictionaries.  Filtering
         # will be performed with info from these keys.
         filtertime1 = datetime.now()
@@ -865,7 +864,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         print("Performed post-request filtering: " + str(datetime.now() - filtertime1))
 
 
-        ############################# SAVE SUMMARY OF VALUES KEPT (FILTER)
+        ################################## SUMMARY OF VALUES KEPT (FILTER; JSON)
         filtersummarytime1 = datetime.now()
         summary2 = {'datums': ['WGS84'],
                    'issues': set([]),
@@ -938,8 +937,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         print("Summarized results of filtering: " + str(datetime.now() - filtersummarytime1))
 
 
-        ###############################################  INSERT INTO DB
-        ###############################################################
+        #################################################  INSERT INTO DB (JSON)
         # Insert the records   !needs to assess if coord uncertainty is present
         # and act accordingly because insert statement depends on if it's present!
         inserttime1 = datetime.now()
@@ -976,17 +974,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                 print(x)
         print("Inserted records: " + str(datetime.now() - inserttime1))
 
-        inserttime2 = datetime.now()
-        try:
-            sql2 = """UPDATE occurrences
-                      SET geom_xy4326 = GeomFromText('POINT('||"longitude"||' '||"latitude"||')', 4326);"""
-            cursor.execute(sql2)
-
-        except Exception as e:
-            print(e)
-
-        print("Updated occurrences table geometry column: " + str(datetime.now() - inserttime2))
-
         # Update the individual count when it exists
         inserttime3 = datetime.now()
         for e in alloccsX:
@@ -998,13 +985,14 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         conn.commit()
         print("Updated individuaCount column: " + str(datetime.now() - inserttime3))
 
+    ########################################## GREATER THAN 100,000 RECORDS (DF)
     ############################################################################
-    ############################################################################
-    # If more than 100,000 records then use the download function.
     else:
+        ########################################################## DOWNLOAD (DF)
         # Make the data request using the download function.  Results are
-        # emailed.  NoneType values cause problems, so only add arguments if
-        # their value isn't NoneType.
+        # emailed.
+        # First, build a query list.  NoneType values cause problems, so only
+        # add arguments if their value isn't NoneType.
         download_filters = ['taxonKey = {0}'.format(gbif_id)]
 
         if coordinate != None:
@@ -1045,7 +1033,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         dkey = d[0]
 
         # Now download the actual zip file containing the Darwin Core files
-        #
         # NOTE: The download can take a while to generate and is not immediately
         # available once the download_get command has been issued. Use a
         # while and try loop to make sure the download has succeeded.
@@ -1062,34 +1049,144 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                 pass
         print("Download complete")
 
-
         # Read the "occurrence.txt" file into a Pandas dataframe
         with DwCAReader(inDir + dkey + '.zip') as dwca:
             print(' Reading occurrence records into Pandas dataframe ....')
             dfOcc = dwca.pd_read('occurrence.txt')#, parse_dates=True)
 
         # Filter out unneccesary columns
+        keycols = ['basisOfRecord', 'individualCount', 'scientificName',
+                   'decimalLongitude', 'decimalLatitude', 'coordinateUncertaintyInMeters',
+                   'eventDate', 'issue', 'id', 'occurrenceID', 'dataGeneralizations',
+                   'eventRemarks', 'locality', 'locationRemarks', 'collectionCode',
+                   'protocol', 'samplingProtocol', 'institutionCode',
+                   'establishmentMeans', 'institutionID', 'identificationQualifier']
 
-
-
-
+        dfOcc.filter(columns=keycols, inplace=True, axis=1)
 
         print("saving")
         dfOcc.to_csv("T:/temp/dfOcc.csv")
-        return
+
+        ############################  SUMMARY TABLE OF KEYS/FIELDS RETURNED (DF)
+        # Count entries per atrribute(column), reformat as new df with appropriate
+        # columns.  Finally, insert into db.
+        df_populated1 = pd.DataFrame(df0.count(axis=0).T.iloc[1:])
+        df_populated1['included(n)'] = len(df0)
+        df_populated1['populated(n)'] = df_populated1[0]
+        df_populated2 = df_populated1.filter(items=['included(n)', 'populated(n)'], axis='columns')
+        df_populated2.index.name = 'attribute'
+        print(df_populated2.head(25))
+        df_populated2.to_sql(name='gbif_fields_returned', con=conn, if_exists='replace')
+
+        ############################### SUMMARY OF VALUES RETURNED (DF; REQUEST)
+        # Create a table for storing unique attribute values that came back.
+        summary = {'datums': ['WGS84'],
+                   'issues': set([]),
+                   'bases': [],
+                   'institutions': [],
+                   'collections': [],
+                   'generalizations': set([]),
+                   'remarks': set([]),
+                   'establishment': set([]),
+                   'IDqualifier': set([]),
+                   'protocols': set([])}
+
+        value_summaries = {'bases': {},
+                          'datums': {'WGS84': 0},
+                          'issues': {},
+                          'institutions': {},
+                          'collections': {},
+                          'protocols': {},
+                          'samplingProtocols': {}}
+
+        def get_vals(df, column_name):
+            '''
+            Return a set of unique values from a column
+            '''
+            stoat = df[column_name].unique()
+            stoat = [str(x).split(";") for x in stoat]
+            stoat1 = []
+            for x in stoat:
+                for y in x:
+                    if y == "" or y == None:
+                        stoat1.append('UNKNOWN') # ? Keep?
+                    else:
+                        stoat1.append(y)
+            return set(stoat1)
+
+        # datums - ? - couldn't find this info in the table
+
+        # issues
+        summary['issues'] = get_vals(df0, 'issue')
+
+        # basis or record
+        summary['bases'] = get_vals(df0, 'basisOfRecord')
+
+        # institution
+        summary['institutions'] = get_vals(df0, 'institutionID') | get_vals(df0, 'institutionCode')
+
+        # collections
+        summary['collections'] = get_vals(df0, 'collectionCode')
+
+        # establishment means
+        summary['establishment'] = get_vals(df0, 'establishmentMeans')
+
+        # identification qualifier
+        summary['IDqualifier'] = get_vals(df0, 'identificationQualifier')
+
+        # protocols
+        summary['protocols'] = get_vals(df0, 'protocol') | get_vals(df0, 'samplingProtocol')
+
+        print(summary)
+
+        # Remove duplicates, make strings for entry into summary table of attributes
+        cursor.executescript("""CREATE TABLE record_attributes (step TEXT, field TEXT, vals TEXT);""")
+        for x in summary.keys():
+            vals = str(list(set(summary[x]))).replace('"', '')
+            stmt = """INSERT INTO record_attributes (step, field, vals)
+                      VALUES ("request", "{0}", "{1}");""".format(x, vals)
+            cursor.execute(stmt)
+
+        # Store the value summary for the selected fields in a table.
+        cursor.executescript("""CREATE TABLE post_request_value_counts
+                                (attribute TEXT, value TEXT, count INTEGER);""")
+        for x in value_counts.keys():
+            attribute = value_counts[x]
+            for y in value_counts[x].keys():
+                z = value_counts[x][y]
+                frog = """INSERT INTO post_request_value_counts (attribute, value, count)
+                          VALUES ("{0}", "{1}", "{2}")""".format(x,y,z)
+                cursor.execute(frog)
+        print("Created summary table of request results: " + str(datetime.now()))
+
+        ###########################################################  FILTER (DF)
+
+        ###################################################  INSERT INTO DB (DF)
+
+        ################################## SUMMARY OF VALUES KEPT (FILTER; JSON)
+        
 
 
 
 
 
 
-        # Summary table of keys/fields returned
-        # Summary lists of values returned and count per value - save in db
-        # filter post-request
-        # summarize kept again - save in db
-        # insert
-        # make geomfromtext
-        # update individual count
+
+
+
+    ########################################  MAKE POINT GEOMETRY COLUMN
+    ####################################################################
+    inserttime2 = datetime.now()
+    try:
+        sql2 = """UPDATE occurrences
+                  SET geom_xy4326 = GeomFromText('POINT('||"longitude"||' '||"latitude"||')', 4326);"""
+        cursor.execute(sql2)
+    except Exception as e:
+        print(e)
+
+    print("Updated occurrences table geometry column: " + str(datetime.now() - inserttime2))
+
+        # update individual count  ????????????????????????????
 
 
     ################################################  HANDLE DUPLICATES
