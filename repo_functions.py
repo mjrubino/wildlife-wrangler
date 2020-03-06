@@ -260,11 +260,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     and filtering occurrence records, saving them in a database.  Finally, exports
     some maps.
 
-    To do:
-    2.  Can we use EPSG:5070?
-    3.  Account for possiblity of non-4326 occurrence records in gbif? Solution
-        would be to transform before entering into database.
-
     Arguments:
     codeDir -- directory of this code repo.
     species_id -- project id for the species concept.
@@ -308,7 +303,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     print("SPATIALITE_SECURITY set to " + os.environ['SPATIALITE_SECURITY'])
 
 
-
     #############################################################################
     #                              Species-concept
     #############################################################################
@@ -329,9 +323,9 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     sp_geom =concept[5]
 
 
-    #############################################################################
-    #                           Create Occurrence Database
-    #############################################################################
+    ############################################################################
+    #####################    Create Occurrence Database    #####################
+    ############################################################################
     """
     Description: Create a database for storing occurrence and species-concept
     data.  Needs to have spatial querying functionality.
@@ -386,9 +380,9 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
 
     requesttime1 = datetime.now()
 
-    #############################################################################
-    #                           Get Filters
-    #############################################################################
+    ############################################################################
+    ###########################   Get Filters   ################################
+    ############################################################################
     """
     Retrieve filter parameters from the parameters database.
     """
@@ -505,14 +499,15 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     print("Got request params and sorted out geometry constraints: " + str(datetime.now() - requesttime1))
     requesttime2 = datetime.now()
 
-    #############################################################################
-    #                          Get GBIF Records
-    #############################################################################
+    ############################################################################
+    #######################      Get GBIF Records      #########################
+    ############################################################################
     """
     Retrieve GBIF records for a species and save appropriate
     attributes in the occurrence db.
     """
     ####################################### HOW MANY RECORDS EXIST TO PULL FROM?
+    ############################################################################
     # First, find out how many records there are that meet criteria
     occ_search = occurrences.search(gbif_id,
                                     year=years,
@@ -526,7 +521,8 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     occ_count=occ_search['count']
     print(str(occ_count) + " records available")
 
-    ########################################### LESS THAN 100,000 RECORDS (JSON)
+    ############################################################################
+    #                         < 100,000 RECORDS (JSON)
     ############################################################################
     if occ_count <100000:
         # Get occurrences in batches, saving into master list
@@ -551,6 +547,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         print('\t{0} records exist with the request parameters'.format(occ_count))
 
         ##########################  SUMMARY TABLE OF KEYS/FIELDS RETURNED (JSON)
+        ########################################################################
         """                                                                         ### TOO SLOW
         keys = [list(x.keys()) for x in alloccs]
         keys2 = set([])
@@ -585,6 +582,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         """
 
         ############################# SUMMARY OF VALUES RETURNED (JSON; REQUEST)
+        ########################################################################
         summary = {'datums': ['WGS84'],
                    'issues': set([]),
                    'bases': [],
@@ -722,22 +720,24 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         print("Created summary table of request results: " + str(datetime.now() - requestsummarytime1))
 
         #########################################################  FILTER (JSON)
+        ########################################################################
         # Pull out relevant attributes from occurrence dictionaries.  Filtering
         # will be performed with info from these keys.
         filtertime1 = datetime.now()
-        keykeys = ['basisOfRecord', 'individualCount', 'acceptedTaxonKey',
-                   'scientificName', 'acceptedScientificName','taxonomicStatus',
-                   'decimalLongitude', 'decimalLatitude',
-                   'coordinateUncertaintyInMeters', 'year',
-                   'month', 'day', 'eventDate', 'issues','geodeticDatum',
-                   'gbifID', 'type', 'preparations', 'occurrenceStatus',
-                   'georeferenceProtocol', 'georeferenceVerificationStatus',
-                   'occurrenceID', 'dataGeneralizations', 'eventRemarks', 'locality',
-                   'locationRemarks', 'occurrenceRemarks', 'collectionCode',
-                   'protocol', 'samplingProtocol', 'institutionCode']
+        # List of informative columns to keep
+        keeper_keys = ['basisOfRecord', 'individualCount', 'scientificName',
+                       'decimalLongitude', 'decimalLatitude',
+                       'coordinateUncertaintyInMeters',
+                       'eventDate', 'issue', 'issues', 'gbifID', 'occurrenceID',
+                       'dataGeneralizations', 'eventRemarks', 'locality',
+                       'locationRemarks', 'collectionCode', 'protocol',
+                       'samplingProtocol', 'institutionCode', 'institutionID'
+                       'establishmentMeans', 'institutionID',
+                       'identificationQualifier', 'occurrenceRemarks']
+
         alloccs2 = []
         for x in alloccs:
-            alloccs2.append(dict((y,x[y]) for y in x if y in keykeys))
+            alloccs2.append(dict((y,x[y]) for y in x if y in keeper_keys))
 
         # Combine remarks FIELDS
         for x in alloccs2:
@@ -865,6 +865,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
 
 
         ################################## SUMMARY OF VALUES KEPT (FILTER; JSON)
+        ########################################################################
         filtersummarytime1 = datetime.now()
         summary2 = {'datums': ['WGS84'],
                    'issues': set([]),
@@ -938,6 +939,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
 
 
         #################################################  INSERT INTO DB (JSON)
+        ########################################################################
         # Insert the records   !needs to assess if coord uncertainty is present
         # and act accordingly because insert statement depends on if it's present!
         inserttime1 = datetime.now()
@@ -985,10 +987,12 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         conn.commit()
         print("Updated individuaCount column: " + str(datetime.now() - inserttime3))
 
-    ########################################## GREATER THAN 100,000 RECORDS (DF)
+    ############################################################################
+    #                         > 100,000 RECORDS (JSON)
     ############################################################################
     else:
         ########################################################## DOWNLOAD (DF)
+        ########################################################################
         # Make the data request using the download function.  Results are
         # emailed.
         # First, build a query list.  NoneType values cause problems, so only
@@ -1052,22 +1056,14 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         # Read the "occurrence.txt" file into a Pandas dataframe
         with DwCAReader(inDir + dkey + '.zip') as dwca:
             print(' Reading occurrence records into Pandas dataframe ....')
-            dfOcc = dwca.pd_read('occurrence.txt')#, parse_dates=True)
+            df0 = dwca.pd_read('occurrence.txt')#, usecols=keeper_keys)
 
-        # Filter out unneccesary columns
-        keycols = ['basisOfRecord', 'individualCount', 'scientificName',
-                   'decimalLongitude', 'decimalLatitude', 'coordinateUncertaintyInMeters',
-                   'eventDate', 'issue', 'id', 'occurrenceID', 'dataGeneralizations',
-                   'eventRemarks', 'locality', 'locationRemarks', 'collectionCode',
-                   'protocol', 'samplingProtocol', 'institutionCode',
-                   'establishmentMeans', 'institutionID', 'identificationQualifier']
-
-        dfOcc.filter(columns=keycols, inplace=True, axis=1)
-
+        df0 = df0.filter(items=keeper_keys, axis=1)
         print("saving")
-        dfOcc.to_csv("T:/temp/dfOcc.csv")
+        df0.to_csv("T:/temp/dfOcc.csv")
 
         ############################  SUMMARY TABLE OF KEYS/FIELDS RETURNED (DF)
+        ########################################################################
         # Count entries per atrribute(column), reformat as new df with appropriate
         # columns.  Finally, insert into db.
         df_populated1 = pd.DataFrame(df0.count(axis=0).T.iloc[1:])
@@ -1075,10 +1071,11 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         df_populated1['populated(n)'] = df_populated1[0]
         df_populated2 = df_populated1.filter(items=['included(n)', 'populated(n)'], axis='columns')
         df_populated2.index.name = 'attribute'
-        print(df_populated2.head(25))
         df_populated2.to_sql(name='gbif_fields_returned', con=conn, if_exists='replace')
+        print(df_populated2.head(25))
 
         ############################### SUMMARY OF VALUES RETURNED (DF; REQUEST)
+        ########################################################################
         # Create a table for storing unique attribute values that came back.
         summary = {'datums': ['WGS84'],
                    'issues': set([]),
@@ -1091,7 +1088,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                    'IDqualifier': set([]),
                    'protocols': set([])}
 
-        value_summaries = {'bases': {},
+        value_counts = {'bases': {},
                           'datums': {'WGS84': 0},
                           'issues': {},
                           'institutions': {},
@@ -1160,22 +1157,100 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         print("Created summary table of request results: " + str(datetime.now()))
 
         ###########################################################  FILTER (DF)
+        ########################################################################
+        # New colummn for compiled remarks and notes
+        df0["remarks"] = df0['locality'] + ";" + df0['eventRemarks'] + ";" + df0['locationRemarks'] + ";" + df0['occurrenceRemarks']
+
+        # HAS COORDINATE UNCERTAINTY
+        if filt_coordUncertainty == 1:
+            df1 = df0[pd.isnull(df0['coordinateUncertaintyInMeters']) == False]
+        if filt_coordUncertainty == 0:
+            df1 = df0
+        # OTHER FILTERS
+        df2 = df1[df1['coordinateUncertaintyInMeters'] <= filt_maxcoord]
+        del df1
+        df3 = df2[df2['collectionCode'].isin(filt_collection) == False]
+        del df2
+        df4 = df3[df3['institutionCode'].isin(filt_instit) == False]
+        del df3
+        df5 = df4[df4['basisOfRecord'].isin(filt_bases) == False]
+        del df4
+        df6 = df5[df5['protocol'].isin(filt_bases) == False]
+        del df5
+        df7 = df6[df6['samplingProtocol'].isin(filt_sampling) == False]
+        del df6
+        # ISSUES - this one is more complex because multiple issues can be listed per record
+        # Method used is complex, but hopefully faster than simple iteration over all records
+        unique_issue = df7['issue'].unique() # List of unique issue entries
+        violations = [x for x in unique_issue if len(set(x.split(";")) & set(filt_issues)) == 0] # entries that contain violations
+        df8 = df7[df7['issue'].isin(violations) == False] # Records without entries that are violations.
+        del df7
+
+        print("Performed post-request filtering: " + str(datetime.now() - filtertime1))
 
         ###################################################  INSERT INTO DB (DF)
+        ########################################################################
+        sql1 = """INSERT INTO occurrences ('occ_id', 'species_id', 'source',
+                                           'latitude', 'longitude',
+                                           'coordinateUncertaintyInMeters',
+                                           'occurrenceDate', 'request_id',
+                                           'filter_id', 'generalizations',
+                                           'remarks')
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
+        for x in df8.index:
+            insert2 = [df8.loc[x,"id"], species_id, 'gbif',
+                       df8.loc[x,"decimalLatitude"], df8.loc[x,"decimalLongitude"],
+                       df8.loc[x,"coordinateUncertaintyInMeters"],
+                       df8.loc[x,"eventDate"], request_id, filter_id,
+                       df8.loc[x,"dataGeneralizations"], df8.loc[x,"remarks"]]
+            cursor.executemany(sql1, [(insert2)])
 
         ################################## SUMMARY OF VALUES KEPT (FILTER; JSON)
-        
+        ########################################################################
+        summary = {'datums': ['WGS84'],
+                   'issues': set([]),
+                   'bases': [],
+                   'institutions': [],
+                   'collections': [],
+                   'generalizations': set([]),
+                   'remarks': set([]),
+                   'establishment': set([]),
+                   'IDqualifier': set([]),
+                   'protocols': set([])}
+
+        # issues
+        summary['issues'] = get_vals(df8, 'issue')
+
+        # basis or record
+        summary['bases'] = get_vals(df8, 'basisOfRecord')
+
+        # institution
+        summary['institutions'] = get_vals(df8, 'institutionID') | get_vals(df8, 'institutionCode')
+
+        # collections
+        summary['collections'] = get_vals(df8, 'collectionCode')
+
+        # establishment means
+        summary['establishment'] = get_vals(df8, 'establishmentMeans')
+
+        # identification qualifier
+        summary['IDqualifier'] = get_vals(df8, 'identificationQualifier')
+
+        # protocols
+        summary['protocols'] = get_vals(df8, 'protocol') | get_vals(df8, 'samplingProtocol')
+
+        print(summary)
+
+        # Remove duplicates, make strings for entry into summary table of attributes
+        for x in summary.keys():
+            vals = str(list(set(summary[x]))).replace('"', '')
+            stmt = """INSERT INTO record_attributes (step, field, vals)
+                      VALUES ("filter", "{0}", "{1}");""".format(x, vals)
+            cursor.execute(stmt)
 
 
-
-
-
-
-
-
-
-    ########################################  MAKE POINT GEOMETRY COLUMN
-    ####################################################################
+    ################################################  MAKE POINT GEOMETRY COLUMN
+    ############################################################################
     inserttime2 = datetime.now()
     try:
         sql2 = """UPDATE occurrences
@@ -1186,11 +1261,11 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
 
     print("Updated occurrences table geometry column: " + str(datetime.now() - inserttime2))
 
-        # update individual count  ????????????????????????????
+    # update individual count  ????????????????????????????
 
 
-    ################################################  HANDLE DUPLICATES
-    ###################################################################
+    #########################################################  HANDLE DUPLICATES
+    ############################################################################
     OKsql = """SELECT duplicates_OK FROM gbif_filters
                    WHERE filter_id = '{0}';""".format(gbif_filter_id)
     duplicates_OK = cursor2.execute(OKsql).fetchone()[0]
@@ -1236,8 +1311,8 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         print("DUPLICATES ON LATITUDE, LONGITUDE, DATE-TIME INCLUDED")
 
 
-    ################################################  BUFFER POINTS
-    ###############################################################
+    #############################################################  BUFFER POINTS
+    ############################################################################
     # Buffer the x,y locations with the coordinate uncertainty
     # in order to create circles.  Create versions in albers and wgs84.  The
     # wgs84 version will be used in plotting with Basemap.  Buffer radius is
@@ -1260,33 +1335,33 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
 
     sql_buf = """
             /* Transform to albers (5070) and apply buffer */
-            ALTER TABLE occurrences ADD COLUMN circle_5070 BLOB;
+            ALTER TABLE occurrences ADD COLUMN polygon_5070 BLOB;
 
-            UPDATE occurrences SET circle_5070 = Buffer(Transform(geom_xy4326,
+            UPDATE occurrences SET polygon_5070 = Buffer(Transform(geom_xy4326,
                                                                     5070),
                                                           radius_meters);
 
-            SELECT RecoverGeometryColumn('occurrences', 'circle_5070', 5070,
+            SELECT RecoverGeometryColumn('occurrences', 'polygon_5070', 5070,
                                          'POLYGON', 'XY');
 
             /* Transform back to WGS84 so it can be displayed in iPython */
-            ALTER TABLE occurrences ADD COLUMN circle_wgs84 BLOB;
+            ALTER TABLE occurrences ADD COLUMN polygon_wgs84 BLOB;
 
-            UPDATE occurrences SET circle_wgs84 = Transform(circle_5070, 4326);
+            UPDATE occurrences SET polygon_wgs84 = Transform(polygon_5070, 4326);
 
-            SELECT RecoverGeometryColumn('occurrences', 'circle_wgs84', 4326,
+            SELECT RecoverGeometryColumn('occurrences', 'polygon_wgs84', 4326,
                                          'POLYGON', 'XY');
     """
     cursor.executescript(sql_buf)
     print("Buffered points: " + str(datetime.now() - buffertime1))
 
 
-    ##################################################  EXPORT MAPS
-    ###############################################################
+    ###############################################################  EXPORT MAPS
+    ############################################################################
     exporttime1 = datetime.now()
     # Export occurrence circles as a shapefile (all seasons)
-    cursor.execute("""SELECT ExportSHP('occurrences', 'circle_wgs84',
-                     '{0}{1}_circles', 'utf-8');""".format(outDir,
+    cursor.execute("""SELECT ExportSHP('occurrences', 'polygon_wgs84',
+                     '{0}{1}_polygons', 'utf-8');""".format(outDir,
                                                            summary_name))
 
     # Export occurrence 'points' as a shapefile (all seasons)

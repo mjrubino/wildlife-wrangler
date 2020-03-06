@@ -1,14 +1,41 @@
 GBIF fields that are relevant to key questions about records
-What -- "id", "gbifID", "individualCount",
+What -- "id", "gbifID", "individualCount"
 
 When -- "eventDate", "retrievalDate"
 
 Where -- "coordinateUncertaintyInMeters", "decimalLatitude", "decimalLongitude",
+         "footprintWKT"
 
-Who provided -- "collectionCode", "institutionCode"
+Who provided -- "collectionCode", "institutionCode", "datasetName"
 
 How obtained -- "basisOfRecord", "protocol", "samplingProtocol"
 
 Issues noted -- "issue"
 
-Notes and comments -- "locality", "eventRemarks", "locationRemarks", "occurrenceRemarks", "dataGeneralizations"
+Notes and comments -- "locality", "eventRemarks", "locationRemarks", "occurrenceRemarks", "dataGeneralizations", "georeferenceRemarks",
+                     "informationWitheld"
+
+
+Additional fields to use for summaries
+"samplingProtocol"
+"protocol"
+"basisOfRecord"
+"institutionCode"
+"collectionCode"
+"issue"
+"geodeticDatum"
+"institutionID"
+"establishmentMeans"
+"identificationQualifier"
+
+
+keykeys = ['basisOfRecord', 'individualCount', 'acceptedTaxonKey',
+               'scientificName', 'acceptedScientificName','taxonomicStatus',
+               'decimalLongitude', 'decimalLatitude',
+               'coordinateUncertaintyInMeters', 'year',
+               'month', 'day', 'eventDate', 'issues','geodeticDatum',
+               'gbifID', 'type', 'preparations', 'occurrenceStatus',
+               'georeferenceProtocol', 'georeferenceVerificationStatus',
+               'occurrenceID', 'dataGeneralizations', 'eventRemarks', 'locality',
+               'locationRemarks', 'occurrenceRemarks', 'collectionCode',
+               'protocol', 'samplingProtocol', 'institutionCode']
