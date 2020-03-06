@@ -46,7 +46,7 @@ This framework is designed to have certain features in order to provide summarie
 ## Coming soon
 * Handling requests of > 200,000 records.
 * Ability to incorporate records directly from a copy of the eBird data set that user has downloaded.
-* Generalization of framework to better facilitate multiple users.  Parameters.sqlite will be replaced with a template that user can build from.  Each user will access a local copy of parameters.sqlite filled out to for their needs.
+* Generalization of framework to better facilitate multiple users.  Parameters.sqlite will be replaced with a template that user can build from.  Each user will access a local copy of parameters.sqlite filled out for their needs.
 
 ## Inputs
 Data is gathered from catalogs and databases through API's so there are few inputs.  However, the 'parameters.sqlite' database is needed, which includes tables for species-concepts, data request parameters, and post-request filtering criteria.
