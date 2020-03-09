@@ -253,7 +253,8 @@ def getGBIFcode(name, rank='species'):
 
 def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                               gbif_filter_id, default_coordUncertainty,
-                              outDir, summary_name, username, password, email):
+                              outDir, summary_name, username, password, email,
+                              sp_geometry=True):
     """
     Retrieves GAP range from ScienceBase and occurrence records from APIs. Filters
     occurrence records, stores them in a database, buffers the xy points,
@@ -271,6 +272,8 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         Uncertainty is specified for a record.
     outDir -- where to save maps that are exported by this process.
     summary_name -- a short name for some file names.
+    sp_geometry -- True or False to use geometry saved with species concept when
+        filtering records.  Request geometry is always used if provided.
     """
 
     import pandas as pd
@@ -427,6 +430,10 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                   WHERE request_id = '{0}'""".format(gbif_req_id)
     poly0 = cursor2.execute(sql_poly).fetchone()[0]
     # A geometry could also be stated for the species, assess what to do
+    # It could also be that user opted not to use species geometry.
+    if sp_geometry == False:
+        sp_geom = None
+
     if poly0 == None and sp_geom == None:
         poly = None
     elif poly0 != None and sp_geom == None:
