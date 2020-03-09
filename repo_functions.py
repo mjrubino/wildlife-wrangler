@@ -252,7 +252,7 @@ def getGBIFcode(name, rank='species'):
     return key
 
 def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
-                              gbif_filter_id, default_coordUncertainty, SRID_dict,
+                              gbif_filter_id, default_coordUncertainty,
                               outDir, summary_name, username, password, email):
     """
     Retrieves GAP range from ScienceBase and occurrence records from APIs. Filters
@@ -269,7 +269,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     gbif_filter_id -- GBIF filter ID for the process.
     default_coordUncertainty -- distance in meters to use if no coordinate
         Uncertainty is specified for a record.
-    SRID_dict -- a dictionary of spatial reference name-code pairs.
     outDir -- where to save maps that are exported by this process.
     summary_name -- a short name for some file names.
     """
@@ -946,38 +945,39 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         # Insert the records   !needs to assess if coord uncertainty is present
         # and act accordingly because insert statement depends on if it's present!
         inserttime1 = datetime.now()
-        for x in alloccsX:
-            try:
-                if 'coordinateUncertaintyInMeters' in x.keys() and x['coordinateUncertaintyInMeters'] > 0:
-                    insert1 = []
-                    insert1.append((x['gbifID'], species_id, 'gbif',
-                                    x['decimalLatitude'], x['decimalLongitude'],
-                                    x['coordinateUncertaintyInMeters'], x['eventDate'],
-                                    gbif_req_id, gbif_filter_id,
-                                    x['dataGeneralizations'], x['remarks']))
-                else:
-                    insert1 = []
-                    insert1.append((x['gbifID'], species_id, 'gbif',
-                                    x['decimalLatitude'], x['decimalLongitude'],
-                                    default_coordUncertainty, x['eventDate'],
-                                    gbif_req_id, gbif_filter_id,
-                                    x['dataGeneralizations'], x['remarks']))
-                insert1 = tuple(insert1)[0]
+        if default_coordUncertainty != False:
+            for x in alloccsX:
+                try:
+                    if 'coordinateUncertaintyInMeters' in x.keys() and x['coordinateUncertaintyInMeters'] > 0:
+                        insert1 = []
+                        insert1.append((x['gbifID'], species_id, 'gbif',
+                                        x['decimalLatitude'], x['decimalLongitude'],
+                                        x['coordinateUncertaintyInMeters'], x['eventDate'],
+                                        gbif_req_id, gbif_filter_id,
+                                        x['dataGeneralizations'], x['remarks']))
+                    else:
+                        insert1 = []
+                        insert1.append((x['gbifID'], species_id, 'gbif',
+                                        x['decimalLatitude'], x['decimalLongitude'],
+                                        default_coordUncertainty, x['eventDate'],
+                                        gbif_req_id, gbif_filter_id,
+                                        x['dataGeneralizations'], x['remarks']))
+                    insert1 = tuple(insert1)[0]
 
-                sql1 = """INSERT INTO occurrences ('occ_id', 'species_id', 'source',
-                                                   'latitude', 'longitude',
-                                                   'coordinateUncertaintyInMeters',
-                                                   'occurrenceDate', 'request_id',
-                                                   'filter_id', 'generalizations',
-                                                   'remarks')
-                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
-                cursor.executemany(sql1, [(insert1)])
+                    sql1 = """INSERT INTO occurrences ('occ_id', 'species_id', 'source',
+                                                       'latitude', 'longitude',
+                                                       'coordinateUncertaintyInMeters',
+                                                       'occurrenceDate', 'request_id',
+                                                       'filter_id', 'generalizations',
+                                                       'remarks')
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
+                    cursor.executemany(sql1, [(insert1)])
 
-            except Exception as e:
-                print("\nThere was a problem with the following record:")
-                print(e)
-                print(x)
-        print("Inserted records: " + str(datetime.now() - inserttime1))
+                except Exception as e:
+                    print("\nThere was a problem with the following record:")
+                    print(e)
+                    print(x)
+            print("Inserted records: " + str(datetime.now() - inserttime1))
 
         # Update the individual count when it exists
         inserttime3 = datetime.now()
@@ -1161,26 +1161,42 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                 cursor.execute(frog)
         print("Created summary table of request results: " + str(datetime.now() - breadtime))
 
+
+        ####################################  ADD DEFAULT COORD UNCERTAINTY (DF)
+        ########################################################################
+        if default_coordUncertainty != False:
+            df0.fillna(value={'coordinateUncertaintyInMeters': default_coordUncertainty},
+                       inplace=True)
+
+
         ###########################################################  FILTER (DF)
         ########################################################################
         fiddlertime = datetime.now()
+        print(len(df0))
         # HAS COORDINATE UNCERTAINTY
         if filt_coordUncertainty == 1:
             df1 = df0[pd.isnull(df0['coordinateUncertaintyInMeters']) == False]
         if filt_coordUncertainty == 0:
             df1 = df0
         # OTHER FILTERS
+        print(len(df1))
         df2 = df1[df1['coordinateUncertaintyInMeters'] <= filt_maxcoord]
+        print(len(df2))
         del df1
         df3 = df2[df2['collectionCode'].isin(filt_collection) == False]
+        print(len(df3))
         del df2
         df4 = df3[df3['institutionCode'].isin(filt_instit) == False]
+        print(len(df4))
         del df3
         df5 = df4[df4['basisOfRecord'].isin(filt_bases) == False]
+        print(len(df5))
         del df4
         df6 = df5[df5['protocol'].isin(filt_bases) == False]
+        print(len(df6))
         del df5
         df7 = df6[df6['samplingProtocol'].isin(filt_sampling) == False]
+        print(len(df7))
         del df6
         # ISSUES - this one is more complex because multiple issues can be listed per record
         # Method used is complex, but hopefully faster than simple iteration over all records
@@ -1188,6 +1204,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         print(unique_issue) # List of unique issue entries
         violations = [x for x in unique_issue if len(set(str(x).split(";")) & set(filt_issues)) == 0] # entries that contain violations
         df8 = df7[df7['issue'].isin(violations) == False] # Records without entries that are violations.
+        print(len(df8))
         del df7
         print("Performed post-request filtering: " + str(datetime.now() - fiddlertime))
 
