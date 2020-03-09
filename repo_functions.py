@@ -1173,7 +1173,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         df0.rename(mapper={"id": "occ_id",
                            "decimalLatitude": "latitude",
                            "decimalLongitude": "longitude",
-                           }, inplace=True, axis='columns')
+                           "eventDate": "occurrenceDate"}, inplace=True, axis='columns')
 
 
         ####################################  ADD DEFAULT COORD UNCERTAINTY (DF)
@@ -1216,8 +1216,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         # Method used is complex, but hopefully faster than simple iteration over all records
         df7.fillna(value={'issue': ""}, inplace=True)
         unique_issue = list(df7['issue'].unique())
-        print(unique_issue) # List of unique issue entries
-        print(filt_issues)
         violations = [x for x in unique_issue if len(set(str(x).split(";")) & set(filt_issues)) != 0] # entries that contain violations
         print(violations)
 
