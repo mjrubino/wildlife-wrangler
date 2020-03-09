@@ -253,8 +253,7 @@ def getGBIFcode(name, rank='species'):
 
 def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                               gbif_filter_id, default_coordUncertainty,
-                              outDir, summary_name, username, password, email,
-                              sp_geometry=True):
+                              outDir, summary_name, username, password, email):
     """
     Retrieves GAP range from ScienceBase and occurrence records from APIs. Filters
     occurrence records, stores them in a database, buffers the xy points,
@@ -275,7 +274,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     sp_geometry -- True or False to use geometry saved with species concept when
         filtering records.  Request geometry is always used if provided.
     """
-
+    sp_geometry = True #  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     import pandas as pd
     pd.set_option('display.width', 1000)
     import sqlite3
@@ -368,7 +367,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                     detection_distance INTEGER,
                     radius_meters INTEGER,
                     footprintWKT TEXT,
-                    weight INTEGER DEFAULT 1,
+                    weight INTEGER DEFAULT 10,
                     weight_notes TEXT,
                     doi_search TEXT,
                         FOREIGN KEY (species_id) REFERENCES taxa(species_id)
@@ -1169,6 +1168,14 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         print("Created summary table of request results: " + str(datetime.now() - breadtime))
 
 
+        #######################################  RENAME FIELDS (DF)
+        ########################################################################
+        df0.rename(mapper={"id": "occ_id",
+                           "decimalLatitude": "latitude",
+                           "decimalLongitude": "longitude",
+                           }, inplace=True, axis='columns')
+
+
         ####################################  ADD DEFAULT COORD UNCERTAINTY (DF)
         ########################################################################
         if default_coordUncertainty != False:
@@ -1207,9 +1214,13 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         del df6
         # ISSUES - this one is more complex because multiple issues can be listed per record
         # Method used is complex, but hopefully faster than simple iteration over all records
-        unique_issue = df7['issue'].unique()
+        df7.fillna(value={'issue': ""}, inplace=True)
+        unique_issue = list(df7['issue'].unique())
         print(unique_issue) # List of unique issue entries
-        violations = [x for x in unique_issue if len(set(str(x).split(";")) & set(filt_issues)) == 0] # entries that contain violations
+        print(filt_issues)
+        violations = [x for x in unique_issue if len(set(str(x).split(";")) & set(filt_issues)) != 0] # entries that contain violations
+        print(violations)
+
         df8 = df7[df7['issue'].isin(violations) == False] # Records without entries that are violations.
         print(len(df8))
         del df7
@@ -1226,7 +1237,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         df8["radius_meters"] = df8["detection_distance"] + df8["coordinateUncertaintyInMeters"]
         df8["source"] = "gbif"
         df8["doi_search"] = ""
-        df8["weight"] = 1
+        df8["weight"] = 10
         df8["weight_notes"] = ""
         print("Calculated new columns: " + str(datetime.now() - newstime))
 
