@@ -598,17 +598,19 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                    'bases': [],
                    'institutions': [],
                    'collections': [],
+                   'datasets': [],
                    'generalizations': set([]),
                    'remarks': set([]),
                    'establishment': set([]),
                    'IDqualifier': set([]),
-                   'samplingProtocol': set([])}
+                   'samplingProtocols': set([])}
 
         value_counts = {'bases': {},
                           'datums': {'WGS84': 0},
                           'issues': {},
                           'institutions': {},
                           'collections': {},
+                          'datasets': {},
                           'samplingProtocols': {}}
 
         for occdict in alloccs:
@@ -676,12 +678,12 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
             except:
                 dn = 'UNKNOWN'
 
-            summary['datasetName'] = summary['datasetName'] + [dn]
+            summary['datasets'] = summary['datasets'] + [dn]
 
-            if dn in value_counts['datasetName'].keys():
-                value_counts['datasetName'][dn] += 1
+            if dn in value_counts['datasets'].keys():
+                value_counts['datasets'][dn] += 1
             else:
-                value_counts['datasetName'][dn] = 1
+                value_counts['datasets'][dn] = 1
 
             # establishment means
             try:
@@ -830,6 +832,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
              else:
                  pass
         del alloccs6
+        alloccs8 = alloccs7
 
         # ISSUES
         alloccs9 = []
@@ -869,9 +872,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                    'samplingProtocols': set([])}
 
         for occdict in alloccsX:
-            # datums
-            if occdict['geodeticDatum'] != 'WGS84':
-                summary2['datums'] = summary2['datums'] + occdict['geodeticDatum']
             # issues
             summary2['issues'] = summary2['issues'] | set(occdict['issues'])
             # basis of record
@@ -1046,11 +1046,12 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         df0 = dfRaw.filter(items=keeper_keys, axis=1)
 
 
-        ####################################################  RENAME FIELDS (DF)
+        ###########################################  RENAME & DELETE FIELDS (DF)
         ########################################################################
         df0.rename(mapper={"id": "occ_id",
                            "decimalLatitude": "latitude",
                            "decimalLongitude": "longitude",
+                           "issue": "issues",
                            "eventDate": "occurrenceDate"}, inplace=True, axis='columns')
 
         df0.to_csv("T:/temp/dfOcc.csv")
@@ -1111,9 +1112,9 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         # datums - ? - couldn't find this info in the table
 
         # issues
-        summary['issues'] = get_vals(df0, 'issue')
+        summary['issues'] = get_vals(df0, 'issues')
 
-        group = df0['occ_id'].groupby(df0['issue'])
+        group = df0['occ_id'].groupby(df0['issues'])
         gemstone = group.count()
         for x in gemstone.index:
             value_counts['issues'][x] = gemstone[x]
@@ -1225,11 +1226,11 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         del df5
         # ISSUES - this one is more complex because multiple issues can be listed per record
         # Method used is complex, but hopefully faster than simple iteration over all records
-        df7.fillna(value={'issue': ""}, inplace=True)
-        unique_issue = list(df7['issue'].unique())
+        df7.fillna(value={'issues': ""}, inplace=True)
+        unique_issue = list(df7['issues'].unique())
         violations = [x for x in unique_issue if len(set(str(x).split(";")) & set(filt_issues)) != 0] # entries that contain violations
 
-        df8 = df7[df7['issue'].isin(violations) == False] # Records without entries that are violations.
+        df8 = df7[df7['issues'].isin(violations) == False] # Records without entries that are violations.
         del df7
         print("Performed post-request filtering: " + str(datetime.now() - fiddlertime))
 
@@ -1246,7 +1247,11 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         df8["doi_search"] = ""
         df8["weight"] = 10
         df8["weight_notes"] = ""
-        print("Calculated new columns: " + str(datetime.now() - newstime))
+        df8.drop(labels=["scientificName", "eventRemarks", "locality",
+                         "locationRemarks", "institutionID", "occurrenceRemarks"],
+                         inplace=True, axis=1)
+
+        print("Calculated new columns, deleted some too: " + str(datetime.now() - newstime))
 
         ###################################################  INSERT INTO DB (DF)
         ########################################################################
