@@ -681,16 +681,16 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
 
             # dataset
             try:
-                co = occdict['datasetName']
+                dn = occdict['datasetName']
             except:
-                co = 'UNKNOWN'
+                dn = 'UNKNOWN'
 
-            summary['datasetName'] = summary['datasetName'] + [co]
+            summary['datasetName'] = summary['datasetName'] + [dn]
 
-            if co in value_counts['datasetName'].keys():
-                value_counts['datasetName'][co] += 1
+            if dn in value_counts['datasetName'].keys():
+                value_counts['datasetName'][dn] += 1
             else:
-                value_counts['datasetName'][co] = 1
+                value_counts['datasetName'][dn] = 1
 
             # establishment means
             try:
@@ -1105,6 +1105,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                    'bases': [],
                    'institutions': [],
                    'collections': [],
+                   'datasets':[],
                    'generalizations': set([]),
                    'remarks': set([]),
                    'establishment': set([]),
@@ -1116,6 +1117,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                           'issues': {},
                           'institutions': {},
                           'collections': {},
+                          'datasets': {},
                           'protocols': {},
                           'samplingProtocols': {}}
 
@@ -1149,7 +1151,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         summary['collections'] = get_vals(df0, 'collectionCode')
 
         # datasets
-        summary['datasetName'] = get_vals(df0, 'datasetName')
+        summary['datasets'] = get_vals(df0, 'datasetName')
 
         # establishment means
         try:
