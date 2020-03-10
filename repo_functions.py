@@ -479,14 +479,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     else:
         filt_bases = []
 
-    sql_protocols = """SELECT protocols_omit FROM gbif_filters
-                   WHERE filter_id = '{0}';""".format(gbif_filter_id)
-    filt_protocols = cursor2.execute(sql_protocols).fetchone()[0]
-    if type(filt_protocols) == str:
-        filt_protocols = list(filt_protocols.split(', '))
-    else:
-        filt_protocols = []
-
     sql_issues = """SELECT issues_omit FROM gbif_filters
                    WHERE filter_id = '{0}';""".format(gbif_filter_id)
     filt_issues = cursor2.execute(sql_issues).fetchone()[0]
@@ -512,7 +504,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                    'coordinateUncertaintyInMeters',
                    'eventDate', 'issue', 'issues', 'gbifID', 'id',
                    'dataGeneralizations', 'eventRemarks', 'locality',
-                   'locationRemarks', 'collectionCode', 'protocol',
+                   'locationRemarks', 'collectionCode',
                    'samplingProtocol', 'institutionCode', 'institutionID'
                    'establishmentMeans', 'institutionID', 'footprintWKT',
                    'identificationQualifier', 'occurrenceRemarks', 'datasetName']
@@ -610,14 +602,13 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                    'remarks': set([]),
                    'establishment': set([]),
                    'IDqualifier': set([]),
-                   'protocols': set([])}
+                   'samplingProtocol': set([])}
 
         value_counts = {'bases': {},
                           'datums': {'WGS84': 0},
                           'issues': {},
                           'institutions': {},
                           'collections': {},
-                          'protocols': {},
                           'samplingProtocols': {}}
 
         for occdict in alloccs:
@@ -706,23 +697,12 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
             except:
                 pass
 
-            # protocols -- NOTE this essentially combines two fields
-            try:
-                proto = occdict['protocol']
-            except:
-                proto = 'UNKNOWN'
-            summary['protocols'] = summary['protocols'] | set([proto])
-
-            if proto in value_counts['protocols'].keys():
-                value_counts['protocols'][proto] += 1
-            else:
-                value_counts['protocols'][proto] = 1
-
+            # sampling protocol
             try:
                 samproto = occdict['samplingProtocol']
             except:
                 samproto = 'UKNOWN'
-            summary['protocols'] = summary['protocols'] | set([samproto])
+            summary['samplingProtocols'] = set([samproto])
 
             if samproto in value_counts['samplingProtocols'].keys():
                 value_counts['samplingProtocols'][samproto] += 1
@@ -730,21 +710,21 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                 value_counts['samplingProtocols'][samproto] = 1
 
         # Remove duplicates, make strings for entry into summary table of attributes
-        cursor.executescript("""CREATE TABLE record_attributes (step TEXT, field TEXT, vals TEXT);""")
+        cursor.executescript("""CREATE TABLE unique_values (step TEXT, field TEXT, vals TEXT);""")
         for x in summary.keys():
             vals = str(list(set(summary[x]))).replace('"', '')
-            stmt = """INSERT INTO record_attributes (step, field, vals)
+            stmt = """INSERT INTO unique_values (step, field, vals)
                       VALUES ("request", "{0}", "{1}");""".format(x, vals)
             cursor.execute(stmt)
 
         # Store the value summary for the selected fields in a table.
-        cursor.executescript("""CREATE TABLE post_request_value_counts
+        cursor.executescript("""CREATE TABLE pre_filter_value_counts
                                 (attribute TEXT, value TEXT, count INTEGER);""")
         for x in value_counts.keys():
             attribute = value_counts[x]
             for y in value_counts[x].keys():
                 z = value_counts[x][y]
-                frog = """INSERT INTO post_request_value_counts (attribute, value, count)
+                frog = """INSERT INTO pre_filter_value_counts (attribute, value, count)
                           VALUES ("{0}", "{1}", "{2}")""".format(x,y,z)
                 cursor.execute(frog)
         #print("\t Slow part 2 : " + str(datetime.now() - slow1))
@@ -851,17 +831,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                  pass
         del alloccs6
 
-        # PROTOCOLS
-        alloccs8 = []
-        for x in alloccs7:
-            if x['protocol'] not in filt_protocols:
-                alloccs8.append(x)
-            elif 'protocol' not in x.keys():
-                alloccs8.append(x)
-            else:
-                pass
-        del alloccs7
-
         # ISSUES
         alloccs9 = []
         for x in alloccs8: # If none of list items are in issues omit list
@@ -897,7 +866,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                    'remarks': set([]),
                    'establishment': set([]),
                    'IDqualifier': set([]),
-                   'protocols': set([])}
+                   'samplingProtocols': set([])}
 
         for occdict in alloccsX:
             # datums
@@ -941,19 +910,14 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                 pass
             # protocols
             try:
-                proto = occdict['protocol']
-                summary2['protocols'] = summary2['protocols'] | set([proto])
-            except:
-                pass
-            try:
                 samproto = occdict['samplingProtocol']
-                summary2['protocols'] = summary2['protocols'] | set([samproto])
+                summary2['samplingProtocols'] = summary2['samplingProtocols'] | set([samproto])
             except:
                 pass
 
         # Remove duplicates, make strings for entry into table
         for x in summary2.keys():
-            stmt = """INSERT INTO record_attributes (step, field, vals)
+            stmt = """INSERT INTO unique_values (step, field, vals)
                       VALUES ("filter", "{0}", "{1}");""".format(x, str(list(set(summary2[x]))).replace('"', ''))
             cursor.execute(stmt)
         print("Summarized results of filtering: " + str(datetime.now() - filtersummarytime1))
@@ -1080,6 +1044,15 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
             dfRaw = dwca.pd_read('occurrence.txt', low_memory=False)#, usecols=keeper_keys)
 
         df0 = dfRaw.filter(items=keeper_keys, axis=1)
+
+
+        ####################################################  RENAME FIELDS (DF)
+        ########################################################################
+        df0.rename(mapper={"id": "occ_id",
+                           "decimalLatitude": "latitude",
+                           "decimalLongitude": "longitude",
+                           "eventDate": "occurrenceDate"}, inplace=True, axis='columns')
+
         df0.to_csv("T:/temp/dfOcc.csv")
         print("Reading and saving downloaded records: " + str(datetime.now() - read1))
 
@@ -1110,7 +1083,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                    'remarks': set([]),
                    'establishment': set([]),
                    'IDqualifier': set([]),
-                   'protocols': set([])}
+                   'samplingProtocols': set([])}
 
         value_counts = {'bases': {},
                           'datums': {'WGS84': 0},
@@ -1118,7 +1091,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                           'institutions': {},
                           'collections': {},
                           'datasets': {},
-                          'protocols': {},
                           'samplingProtocols': {}}
 
         def get_vals(df, column_name):
@@ -1141,17 +1113,42 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         # issues
         summary['issues'] = get_vals(df0, 'issue')
 
+        group = df0['occ_id'].groupby(df0['issue'])
+        gemstone = group.count()
+        for x in gemstone.index:
+            value_counts['issues'][x] = gemstone[x]
+
         # basis or record
         summary['bases'] = get_vals(df0, 'basisOfRecord')
 
+        group = df0['occ_id'].groupby(df0['basisOfRecord'])
+        gemstone = group.count()
+        for x in gemstone.index:
+            value_counts['bases'][x] = gemstone[x]
+
         # institution
-        summary['institutions'] = get_vals(df0, 'institutionID') | get_vals(df0, 'institutionCode')
+        summary['institutions'] = get_vals(df0, 'institutionCode')
+
+        group = df0['occ_id'].groupby(df0['institutionCode'])
+        gemstone = group.count()
+        for x in gemstone.index:
+            value_counts['institutions'][x] = gemstone[x]
 
         # collections
         summary['collections'] = get_vals(df0, 'collectionCode')
 
+        group = df0['occ_id'].groupby(df0['collectionCode'])
+        gemstone = group.count()
+        for x in gemstone.index:
+            value_counts['collections'][x] = gemstone[x]
+
         # datasets
         summary['datasets'] = get_vals(df0, 'datasetName')
+
+        group = df0['occ_id'].groupby(df0['datasetName'])
+        gemstone = group.count()
+        for x in gemstone.index:
+            value_counts['datasets'][x] = gemstone[x]
 
         # establishment means
         try:
@@ -1163,42 +1160,47 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         summary['IDqualifier'] = get_vals(df0, 'identificationQualifier')
 
         # protocols
-        summary['protocols'] = get_vals(df0, 'protocol') | get_vals(df0, 'samplingProtocol')
+        summary['samplingProtocols'] = get_vals(df0, 'samplingProtocol')
+
+        group = df0['occ_id'].groupby(df0['samplingProtocol'])
+        gemstone = group.count()
+        for x in gemstone.index:
+            value_counts['samplingProtocols'][x] = gemstone[x]
+
 
         # Remove duplicates, make strings for entry into summary table of attributes
-        cursor.executescript("""CREATE TABLE record_attributes (step TEXT, field TEXT, vals TEXT);""")
+        cursor.executescript("""CREATE TABLE unique_values (step TEXT, field TEXT, vals TEXT);""")
         for x in summary.keys():
             vals = str(list(set(summary[x]))).replace('"', '')
-            stmt = """INSERT INTO record_attributes (step, field, vals)
+            stmt = """INSERT INTO unique_values (step, field, vals)
                       VALUES ("request", "{0}", "{1}");""".format(x, vals)
             cursor.execute(stmt)
 
         # Store the value summary for the selected fields in a table.
-        cursor.executescript("""CREATE TABLE post_request_value_counts
+        cursor.executescript("""CREATE TABLE pre_filter_value_counts
                                 (attribute TEXT, value TEXT, count INTEGER);""")
         for x in value_counts.keys():
             attribute = value_counts[x]
             for y in value_counts[x].keys():
                 z = value_counts[x][y]
-                frog = """INSERT INTO post_request_value_counts (attribute, value, count)
+                frog = """INSERT INTO pre_filter_value_counts (attribute, value, count)
                           VALUES ("{0}", "{1}", "{2}")""".format(x,y,z)
                 cursor.execute(frog)
         print("Created summary table of request results: " + str(datetime.now() - breadtime))
 
 
-        #######################################  RENAME FIELDS (DF)
+        ######################################  SUMMARIZE SOURCES PRE FILTER (DF)
         ########################################################################
-        df0.rename(mapper={"id": "occ_id",
-                           "decimalLatitude": "latitude",
-                           "decimalLongitude": "longitude",
-                           "eventDate": "occurrenceDate"}, inplace=True, axis='columns')
+        #
+        moss = df0.groupby(['institutionCode', 'collectionCode', 'datasetName'])[['occ_id']].size()
+        moss.to_sql(name='pre_filter_source_counts', con = conn, if_exists='replace')
 
 
         ##########################################  ADD SOME DEFAULT VALUES (DF)
         ########################################################################
         if default_coordUncertainty != False:
             df0.fillna(value={'coordinateUncertaintyInMeters': default_coordUncertainty,
-                              'individualCount': 1},
+                              'individualCount': int(1)},
                        inplace=True)
 
 
@@ -1219,10 +1221,8 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         del df3
         df5 = df4[df4['basisOfRecord'].isin(filt_bases) == False]
         del df4
-        df6 = df5[df5['protocol'].isin(filt_bases) == False]
+        df7 = df5[df5['samplingProtocol'].isin(filt_sampling) == False]
         del df5
-        df7 = df6[df6['samplingProtocol'].isin(filt_sampling) == False]
-        del df6
         # ISSUES - this one is more complex because multiple issues can be listed per record
         # Method used is complex, but hopefully faster than simple iteration over all records
         df7.fillna(value={'issue': ""}, inplace=True)
@@ -1287,8 +1287,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                    'generalizations': set([]),
                    'remarks': set([]),
                    'establishment': set([]),
-                   'IDqualifier': set([]),
-                   'protocols': set([])}
+                   'IDqualifier': set([])}
 
         # issues
         summary['issues'] = get_vals(df8, 'issue')
@@ -1312,12 +1311,12 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         summary['IDqualifier'] = get_vals(df8, 'identificationQualifier')
 
         # protocols
-        summary['protocols'] = get_vals(df8, 'protocol') | get_vals(df8, 'samplingProtocol')
+        summary['samplingProtocols'] = get_vals(df8, 'samplingProtocol')
 
         # Remove duplicates, make strings for entry into summary table of attributes
         for x in summary.keys():
             vals = str(list(set(summary[x]))).replace('"', '')
-            stmt = """INSERT INTO record_attributes (step, field, vals)
+            stmt = """INSERT INTO unique_values (step, field, vals)
                       VALUES ("filter", "{0}", "{1}");""".format(x, vals)
             cursor.execute(stmt)
         print("Summarized unique values retained: " + str(datetime.now() - kepttime))
