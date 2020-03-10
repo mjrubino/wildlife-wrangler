@@ -515,7 +515,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                    'locationRemarks', 'collectionCode', 'protocol',
                    'samplingProtocol', 'institutionCode', 'institutionID'
                    'establishmentMeans', 'institutionID', 'footprintWKT',
-                   'identificationQualifier', 'occurrenceRemarks']
+                   'identificationQualifier', 'occurrenceRemarks', 'datasetName']
 
     ############################################################################
     #######################      Get GBIF Records      #########################
@@ -678,6 +678,19 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                 value_counts['collections'][co] += 1
             else:
                 value_counts['collections'][co] = 1
+
+            # dataset
+            try:
+                co = occdict['datasetName']
+            except:
+                co = 'UNKNOWN'
+
+            summary['datasetName'] = summary['datasetName'] + [co]
+
+            if co in value_counts['datasetName'].keys():
+                value_counts['datasetName'][co] += 1
+            else:
+                value_counts['datasetName'][co] = 1
 
             # establishment means
             try:
@@ -997,7 +1010,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         print("Updated individuaCount column: " + str(datetime.now() - inserttime3))
 
     ############################################################################
-    #                         > 100,000 RECORDS (JSON)
+    #                         > 100,000 RECORDS (DF)
     ############################################################################
     else:
         ########################################################## DOWNLOAD (DF)
@@ -1135,6 +1148,9 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         # collections
         summary['collections'] = get_vals(df0, 'collectionCode')
 
+        # datasets
+        summary['datasetName'] = get_vals(df0, 'datasetName')
+
         # establishment means
         try:
             summary['establishment'] = get_vals(df0, 'establishmentMeans')
@@ -1176,51 +1192,42 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                            "eventDate": "occurrenceDate"}, inplace=True, axis='columns')
 
 
-        ####################################  ADD DEFAULT COORD UNCERTAINTY (DF)
+        ##########################################  ADD SOME DEFAULT VALUES (DF)
         ########################################################################
         if default_coordUncertainty != False:
-            df0.fillna(value={'coordinateUncertaintyInMeters': default_coordUncertainty},
+            df0.fillna(value={'coordinateUncertaintyInMeters': default_coordUncertainty,
+                              'individualCount': 1},
                        inplace=True)
 
 
         ###########################################################  FILTER (DF)
         ########################################################################
         fiddlertime = datetime.now()
-        print(len(df0))
         # HAS COORDINATE UNCERTAINTY
         if filt_coordUncertainty == 1:
             df1 = df0[pd.isnull(df0['coordinateUncertaintyInMeters']) == False]
         if filt_coordUncertainty == 0:
             df1 = df0
         # OTHER FILTERS
-        print(len(df1))
         df2 = df1[df1['coordinateUncertaintyInMeters'] <= filt_maxcoord]
-        print(len(df2))
         del df1
         df3 = df2[df2['collectionCode'].isin(filt_collection) == False]
-        print(len(df3))
         del df2
         df4 = df3[df3['institutionCode'].isin(filt_instit) == False]
-        print(len(df4))
         del df3
         df5 = df4[df4['basisOfRecord'].isin(filt_bases) == False]
-        print(len(df5))
         del df4
         df6 = df5[df5['protocol'].isin(filt_bases) == False]
-        print(len(df6))
         del df5
         df7 = df6[df6['samplingProtocol'].isin(filt_sampling) == False]
-        print(len(df7))
         del df6
         # ISSUES - this one is more complex because multiple issues can be listed per record
         # Method used is complex, but hopefully faster than simple iteration over all records
         df7.fillna(value={'issue': ""}, inplace=True)
         unique_issue = list(df7['issue'].unique())
         violations = [x for x in unique_issue if len(set(str(x).split(";")) & set(filt_issues)) != 0] # entries that contain violations
-        print(violations)
 
         df8 = df7[df7['issue'].isin(violations) == False] # Records without entries that are violations.
-        print(len(df8))
         del df7
         print("Performed post-request filtering: " + str(datetime.now() - fiddlertime))
 
