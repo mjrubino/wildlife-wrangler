@@ -557,6 +557,34 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         print("Downloaded records: " + str(datetime.now() - requesttime2))
         print('\t{0} records exist with the request parameters'.format(occ_count))
 
+        ##############################  SUMMARY TABLE OF SOURCES RETURNED (JSON)
+        ########################################################################
+        horseDF = pd.DataFrame(columns=['occ_id', 'institutionCode',
+                                        'collectionCode', 'datasetName'])
+        newrows = {'occ_id': [], 'institutionCode': [], 'collectionCode': [],
+                   'datasetName': []}
+        for x in alloccs:
+            newrows['occ_id'] = newrows['occ_id'] + [x['gbifID']]
+            try:
+                newrows['institutionCode'] = newrows['institutionCode'] + [x['institutionCode']]
+            except:
+                newrows['institutionCode'] = newrows['institutionCode'] + ['UNKNOWN']
+            try:
+                newrows['collectionCode'] = newrows['collectionCode'] + [x['collectionCode']]
+            except:
+                newrows['collectionCode'] = newrows['collectionCode'] + ['UNKNOWN']
+            try:
+                newrows['datasetName'] = newrows['datasetName'] + [x['datasetName']]
+            except:
+                newrows['datasetName'] = newrows['datasetName'] + ['UNKNOWN']
+        print(horseDF)
+        horseDF2 = horseDF.append(pd.DataFrame(newrows), ignore_index=True)
+        print(horseDF2)
+        ponyDF = horseDF2.groupby(['institutionCode', 'collectionCode', 'datasetName'])[['occ_id']].size()
+        ponyDF.to_sql(name='pre_filter_source_counts', con=conn, if_exists='replace')
+        del horseDF
+        del ponyDF
+
         ##########################  SUMMARY TABLE OF KEYS/FIELDS RETURNED (JSON)
         ########################################################################
         """                                                                         ### TOO SLOW
@@ -1054,7 +1082,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                            "issue": "issues",
                            "eventDate": "occurrenceDate"}, inplace=True, axis='columns')
 
-        df0.to_csv("T:/temp/dfOcc.csv")
+        #df0.to_csv("T:/temp/dfOcc.csv")
         print("Reading and saving downloaded records: " + str(datetime.now() - read1))
 
         ############################  SUMMARY TABLE OF KEYS/FIELDS RETURNED (DF)
