@@ -563,7 +563,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
             alloccs = alloccs + occs
 
         print("Downloaded records: " + str(datetime.now() - requesttime2))
-        print('\t{0} records exist with the request parameters'.format(occ_count))
 
         ######################################  LOAD JSON RECORDS INTO DATAFRAME
         ########################################################################
@@ -620,39 +619,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         del horseDF
         del ponyDF
         print("Created summary table of soures: " + str(datetime.now() - sourcestime))
-
-        ##########################  SUMMARY TABLE OF KEYS/FIELDS RETURNED (small)
-        ########################################################################
-                                                                                ### TOO SLOW
-        keys = [list(x.keys()) for x in alloccs]
-        keys2 = set([])
-        for x in keys:
-            keys2 = keys2 | set(x)
-        dfK = pd.DataFrame(index=keys2, columns=['included(n)', 'populated(n)'])
-        dfK['included(n)'] = 0
-        dfK['populated(n)'] = 0
-        """
-        requestsummarytime1 = datetime.now()
-        """                                    #####  START SLOW
-        for t in alloccs:
-            for y in t.keys():
-                dfK.loc[y, 'included(n)'] += 1
-                try:
-                    int(t[y])
-                    dfK.loc[y, 'populated(n)'] += 1
-                except:
-                    if t[y] == None:
-                        pass
-                    elif len(t[y]) > 0:
-                        dfK.loc[y, 'populated(n)'] += 1
-        """
-        slow1 = datetime.now()
-        """                                                       #######
-        print("\t Slow part 1 : " + str(slow1 - requestsummarytime1))                 # Timer
-        #                                                                     !!!!!!  SLOW PART HAS ENDED BY HERE
-
-        dfK.sort_index(inplace=True)
-        dfK.to_sql(name='gbif_fields_returned', con=conn, if_exists='replace')
 
         ############################# SUMMARY OF VALUES RETURNED (JSON; REQUEST)
         ########################################################################
@@ -1086,6 +1052,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         # NOTE: When pulling from df0copy, only a specified subset of keys are
         # assessed (keeper_keys).  For a more complete picture, alloccs must be
         # assessed.  That has historically been very slow.
+        """ # Fastest, but least informative method for gbif_fields_returned
         newt = datetime.now()
         df0copy.where(df0copy != 'UNKNOWN', inplace=True)
         df_populated1 = pd.DataFrame(df0copy.count(axis=0).T.iloc[1:])
@@ -1095,6 +1062,35 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         df_populated2.index.name = 'attribute'
         df_populated2.to_sql(name='gbif_fields_returned', con=conn, if_exists='replace')
         print("Summarized fields returned: " + str(datetime.now() - newt))
+        """
+        # Slower, but more informative method for gbif_fields_returned
+        '''
+        The method below provides more information on values returned than the
+        one above, but is slow.  Can it be improved to be faster?
+        '''
+        keys = [list(x.keys()) for x in alloccs]
+        keys2 = set([])
+        for x in keys:
+            keys2 = keys2 | set(x)
+        dfK = pd.DataFrame(index=keys2, columns=['included(n)', 'populated(n)'])
+        dfK['included(n)'] = 0
+        dfK['populated(n)'] = 0
+        requestsummarytime1 = datetime.now()   #  START SLOW
+        for t in alloccs:
+            for y in t.keys():
+                dfK.loc[y, 'included(n)'] += 1
+                try:
+                    int(t[y])
+                    dfK.loc[y, 'populated(n)'] += 1
+                except:
+                    if t[y] == None:
+                        pass
+                    elif len(t[y]) > 0:
+                        dfK.loc[y, 'populated(n)'] += 1
+        print("Summarized fields returned: " + str(datetime.now() - requestsummarytime1))#SLOW PART HAS ENDED BY HERE
+        dfK.sort_index(inplace=True)
+        dfK.index.name = 'attribute'
+        dfK.to_sql(name='gbif_fields_returned', con=conn, if_exists='replace')
 
     ############################################################################
     #                         > 100,000 RECORDS (big)
@@ -1337,7 +1333,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     if filt_coordUncertainty == 0:
         df1 = df0
     # OTHER FILTERS
-    print(filt_maxcoord, type(filt_maxcoord))
     df2 = df1[df1['coordinateUncertaintyInMeters'] <= filt_maxcoord]
     del df1
     df3 = df2[df2['collectionCode'].isin(filt_collection) == False]
