@@ -581,7 +581,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         df0 = dfRaw.append(insertDF, ignore_index=True, sort=False)
         df0copy = df0.copy() # a copy for gbif_fields_returned below
 
-        ###########################################  RENAME & DELETE FIELDS
+        ###########################################  RENAME & DELETE FIELDS ETC.
         ########################################################################
         df0.rename(mapper={"gbifID": "occ_id",
                            "decimalLatitude": "latitude",
@@ -590,6 +590,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         df0.drop(["issue", "id"], inplace=True, axis=1)
         df0['coordinateUncertaintyInMeters'].replace(to_replace="UNKNOWN", value=None, inplace=True)
         df0 = df0.astype({'coordinateUncertaintyInMeters': 'float'})
+        #df0.set_index(['occ_id'], inplace=True, drop=False)
 
         ############################  SUMMARY TABLE OF KEYS/FIELDS RETURNED (SMALL)
         ########################################################################

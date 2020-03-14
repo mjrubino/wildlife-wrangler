@@ -8,9 +8,9 @@ Where -- "coordinateUncertaintyInMeters", "decimalLatitude", "decimalLongitude",
 
 Who provided -- "collectionCode", "institutionCode", "datasetName"
 
-How obtained -- "basisOfRecord", "protocol", "samplingProtocol"
+How obtained -- "basisOfRecord", "samplingProtocol"
 
-Issues noted -- "issue"
+Issues noted -- "issue" or "issues"
 
 Notes and comments -- "locality", "eventRemarks", "locationRemarks", "occurrenceRemarks", "dataGeneralizations", "georeferenceRemarks",
                      "informationWitheld"
@@ -18,24 +18,21 @@ Notes and comments -- "locality", "eventRemarks", "locationRemarks", "occurrence
 
 Additional fields to use for summaries
 "samplingProtocol"
-"protocol"
 "basisOfRecord"
 "institutionCode"
 "collectionCode"
 "issue"
 "geodeticDatum"
-"institutionID"
 "establishmentMeans"
 "identificationQualifier"
 
 
-keykeys = ['basisOfRecord', 'individualCount', 'acceptedTaxonKey',
-               'scientificName', 'acceptedScientificName','taxonomicStatus',
-               'decimalLongitude', 'decimalLatitude',
-               'coordinateUncertaintyInMeters', 'year',
-               'month', 'day', 'eventDate', 'issues','geodeticDatum',
-               'gbifID', 'type', 'preparations', 'occurrenceStatus',
-               'georeferenceProtocol', 'georeferenceVerificationStatus',
-               'occurrenceID', 'dataGeneralizations', 'eventRemarks', 'locality',
-               'locationRemarks', 'occurrenceRemarks', 'collectionCode',
-               'protocol', 'samplingProtocol', 'institutionCode']
+keeper_keys = ['basisOfRecord', 'individualCount', 'scientificName',
+                   'decimalLongitude', 'decimalLatitude',
+                   'coordinateUncertaintyInMeters',
+                   'eventDate', 'issue', 'issues', 'gbifID', 'id',
+                   'dataGeneralizations', 'eventRemarks', 'locality',
+                   'locationRemarks', 'collectionCode',
+                   'samplingProtocol', 'institutionCode', 'establishmentMeans',
+                   'institutionID', 'footprintWKT', 'identificationQualifier',
+                   'occurrenceRemarks', 'datasetName']
