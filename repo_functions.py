@@ -290,6 +290,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     import sys
     import shutil
     from dwca.read import DwCAReader
+    import numpy as np
 
 
     # Environment variables need to be handled
@@ -353,6 +354,12 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
             CREATE TABLE IF NOT EXISTS occurrences (
                     occ_id INTEGER NOT NULL PRIMARY KEY,
                     species_id INTEGER NOT NULL,
+                    basisOfRecord TEXT,
+                    issues TEXT,
+                    collectionCode TEXT,
+                    institutionCode TEXT,
+                    datasetName TEXT,
+                    identificationQualifier TEXT,
                     source TEXT NOT NULL,
                     request_id TEXT NOT NULL,
                     filter_id TEXT NOT NULL,
@@ -362,7 +369,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                     occurrenceDate TEXT,
                     retrievalDate TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     individualCount INTEGER DEFAULT 1,
-                    generalizations TEXT,
+                    dataGeneralizations TEXT,
                     remarks TEXT,
                     detection_distance INTEGER,
                     radius_meters INTEGER,
@@ -505,9 +512,10 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                    'eventDate', 'issue', 'issues', 'gbifID', 'id',
                    'dataGeneralizations', 'eventRemarks', 'locality',
                    'locationRemarks', 'collectionCode',
-                   'samplingProtocol', 'institutionCode', 'institutionID'
-                   'establishmentMeans', 'institutionID', 'footprintWKT',
-                   'identificationQualifier', 'occurrenceRemarks', 'datasetName']
+                   'samplingProtocol', 'institutionCode', 'establishmentMeans',
+                   'institutionID', 'footprintWKT', 'identificationQualifier',
+                   'occurrenceRemarks', 'datasetName']
+    keeper_keys.sort()
 
     ############################################################################
     #######################      Get GBIF Records      #########################
@@ -533,7 +541,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
 
 
     ############################################################################
-    #                         < 100,000 RECORDS (JSON)
+    #                         < 100,000 RECORDS (small)
     ############################################################################
     if occ_count <100000:
         # Get occurrences in batches, saving into master list
@@ -557,8 +565,37 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         print("Downloaded records: " + str(datetime.now() - requesttime2))
         print('\t{0} records exist with the request parameters'.format(occ_count))
 
-        ##############################  SUMMARY TABLE OF SOURCES RETURNED (JSON)
+        ######################################  LOAD JSON RECORDS INTO DATAFRAME
         ########################################################################
+        dfRaw = pd.DataFrame(columns=keeper_keys)
+        insertDict = {}
+        for x in keeper_keys:
+            insertDict[x] = []
+        for x in alloccs:
+            present_keys = list(set(x.keys()) & set(keeper_keys))
+            for y in present_keys:
+                insertDict[y] = insertDict[y] + [str(x[y])]
+            missing_keys = list(set(keeper_keys) - set(x.keys()))
+            for z in missing_keys:
+                insertDict[z] = insertDict[z] + ["UNKNOWN"]
+        insertDF = pd.DataFrame(insertDict)
+        df0 = dfRaw.append(insertDF, ignore_index=True, sort=False)
+
+        ###########################################  RENAME & DELETE FIELDS
+        ########################################################################
+        df0.rename(mapper={"gbifID": "occ_id",
+                           "decimalLatitude": "latitude",
+                           "decimalLongitude": "longitude",
+                           "eventDate": "occurrenceDate"}, inplace=True, axis='columns')
+        df0.drop(["issue", "id"], inplace=True, axis=1)
+        df0['coordinateUncertaintyInMeters'].replace(to_replace="UNKNOWN", value=None, inplace=True)
+        #df0.astype('string')
+        df0 = df0.astype({'coordinateUncertaintyInMeters': 'float'})
+
+        '''
+        ##############################  SUMMARY TABLE OF SOURCES RETURNED (small)
+        ########################################################################
+        sourcestime = datetime.now()
         horseDF = pd.DataFrame(columns=['occ_id', 'institutionCode',
                                         'collectionCode', 'datasetName'])
         newrows = {'occ_id': [], 'institutionCode': [], 'collectionCode': [],
@@ -577,17 +614,16 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                 newrows['datasetName'] = newrows['datasetName'] + [x['datasetName']]
             except:
                 newrows['datasetName'] = newrows['datasetName'] + ['UNKNOWN']
-        print(horseDF)
         horseDF2 = horseDF.append(pd.DataFrame(newrows), ignore_index=True)
-        print(horseDF2)
         ponyDF = horseDF2.groupby(['institutionCode', 'collectionCode', 'datasetName'])[['occ_id']].size()
         ponyDF.to_sql(name='pre_filter_source_counts', con=conn, if_exists='replace')
         del horseDF
         del ponyDF
+        print("Created summary table of soures: " + str(datetime.now() - sourcestime))
 
-        ##########################  SUMMARY TABLE OF KEYS/FIELDS RETURNED (JSON)
+        ##########################  SUMMARY TABLE OF KEYS/FIELDS RETURNED (small)
         ########################################################################
-        """                                                                         ### TOO SLOW
+                                                                                ### TOO SLOW
         keys = [list(x.keys()) for x in alloccs]
         keys2 = set([])
         for x in keys:
@@ -617,7 +653,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
 
         dfK.sort_index(inplace=True)
         dfK.to_sql(name='gbif_fields_returned', con=conn, if_exists='replace')
-        """
 
         ############################# SUMMARY OF VALUES RETURNED (JSON; REQUEST)
         ########################################################################
@@ -642,6 +677,18 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                           'samplingProtocols': {}}
 
         for occdict in alloccs:
+            ############ determine some values that may or may not be present
+            try:
+                IDQ = occdict['identificationQualifier']
+            except:
+                IDQ = ""
+                occdict['identificationQualifier'] = ""
+            try:
+                footprint = occdict['footprintWKT']
+            except:
+                footprint = ""
+                occdict['footprintWKT'] = ""
+
             # datums
             if occdict['geodeticDatum'] != 'WGS84':
                 summary['datums'] = summary['datums'] + occdict['geodeticDatum']
@@ -705,6 +752,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                 dn = occdict['datasetName']
             except:
                 dn = 'UNKNOWN'
+                occdict['datasetName'] = dn
 
             summary['datasets'] = summary['datasets'] + [dn]
 
@@ -722,16 +770,17 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
 
             # identification qualifier
             try:
-                qual = occdict['identificationQualifier']
-                summary['IDqualifier'] = summary['IDqualifier'] | set([qual])
+                IDQ = occdict['identificationQualifier']
+                summary['IDqualifier'] = summary['IDqualifier'] | set([IDQ])
             except:
-                pass
+                IDQ = ''
 
             # sampling protocol
             try:
                 samproto = occdict['samplingProtocol']
             except:
-                samproto = 'UKNOWN'
+                samproto = 'UNKNOWN'
+                occdict['samplingProtocol'] = samproto
             summary['samplingProtocols'] = set([samproto])
 
             if samproto in value_counts['samplingProtocols'].keys():
@@ -760,7 +809,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         #print("\t Slow part 2 : " + str(datetime.now() - slow1))
         print("Created summary table of request results: " + str(datetime.now() - requestsummarytime1))
 
-        #########################################################  FILTER (JSON)
+        #########################################################  FILTER (small)
         ########################################################################
         # Pull out relevant attributes from occurrence dictionaries.  Filtering
         # will be performed with info from these keys.
@@ -893,6 +942,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                    'bases': [],
                    'institutions': [],
                    'collections': [],
+                   'datasetNames': [],
                    'generalizations': set([]),
                    'remarks': set([]),
                    'establishment': set([]),
@@ -918,6 +968,18 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                     summary2['institutions'] = summary2['institutions'] + [who]
             except:
                 summary2['institutions'] = summary2['institutions'] + ['UNKNOWN']
+            # collections
+            try:
+                co = occdict['collectionCode']
+                summary2['collections'] = summary2['collections'] + [co]
+            except:
+                pass
+            # dataset
+            try:
+                dset = occdict['datasetName']
+                summary2['datasetNames'] = summary2['datasetNames'] + [dset]
+            except:
+                summary2['datasetNames'] = summary2['datasetNames'] + ['UNKNOWN']
             # collections
             try:
                 co = occdict['collectionCode']
@@ -951,7 +1013,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         print("Summarized results of filtering: " + str(datetime.now() - filtersummarytime1))
 
 
-        #################################################  INSERT INTO DB (JSON)
+        #################################################  INSERT INTO DB (small)
         ########################################################################
         # Insert the records   !needs to assess if coord uncertainty is present
         # and act accordingly because insert statement depends on if it's present!
@@ -965,14 +1027,22 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                                         x['decimalLatitude'], x['decimalLongitude'],
                                         x['coordinateUncertaintyInMeters'], x['eventDate'],
                                         gbif_req_id, gbif_filter_id,
-                                        x['dataGeneralizations'], x['remarks']))
+                                        x['dataGeneralizations'], x['remarks'],
+                                        x['basisOfRecord'], x['issues'], x['dataGeneralizations'],
+                                        x['collectionCode'], x['samplingProtocol'],
+                                        x['institutionCode'], x['footprintWKT'],
+                                        x['identificationQualifier'], x['datasetName']))
                     else:
                         insert1 = []
                         insert1.append((x['gbifID'], species_id, 'gbif',
                                         x['decimalLatitude'], x['decimalLongitude'],
                                         default_coordUncertainty, x['eventDate'],
                                         gbif_req_id, gbif_filter_id,
-                                        x['dataGeneralizations'], x['remarks']))
+                                        x['dataGeneralizations'], x['remarks'],
+                                        x['basisOfRecord'], x['issues'], x['dataGeneralizations'],
+                                        x['collectionCode'], x['samplingProtocol'],
+                                        x['institutionCode'], x['footprintWKT'],
+                                        x['identificationQualifier'], x['datasetName']))
                     insert1 = tuple(insert1)[0]
 
                     sql1 = """INSERT INTO occurrences ('occ_id', 'species_id', 'source',
@@ -980,14 +1050,20 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                                                        'coordinateUncertaintyInMeters',
                                                        'occurrenceDate', 'request_id',
                                                        'filter_id', 'generalizations',
-                                                       'remarks')
-                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
+                                                       'remarks', basisOfRecord',
+                                                       'issues', 'dataGeneralizations',
+                                                       'collectionCode', 'samplingProtocol',
+                                                       'institutionCode', 'footprintWKT',
+                                                       'identificationQualifier',
+                                                       'datasetName')
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
                     cursor.executemany(sql1, [(insert1)])
 
                 except Exception as e:
                     print("\nThere was a problem with the following record:")
                     print(e)
                     print(x)
+                    print(insert1)
             print("Inserted records: " + str(datetime.now() - inserttime1))
 
         # Update the individual count when it exists
@@ -1001,11 +1077,26 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         conn.commit()
         print("Updated individuaCount column: " + str(datetime.now() - inserttime3))
 
+        '''
+        '''
+        ############################  SUMMARY TABLE OF KEYS/FIELDS RETURNED (SMALL)
+        ########################################################################
+        # Count entries per atrribute(column), reformat as new df with appropriate
+        # columns.  Finally, insert into db.
+        cheese1 = datetime.now()
+        df_populated1 = pd.DataFrame(dfRaw.count(axis=0).T.iloc[1:])
+        df_populated1['included(n)'] = len(dfRaw)
+        df_populated1['populated(n)'] = df_populated1[0]
+        df_populated2 = df_populated1.filter(items=['included(n)', 'populated(n)'], axis='columns')
+        df_populated2.index.name = 'attribute'
+        df_populated2.to_sql(name='gbif_fields_returned', con=conn, if_exists='replace')
+        print("Summarized fields returned: " + str(datetime.now() - cheese1))
+        '''
     ############################################################################
-    #                         > 100,000 RECORDS (DF)
+    #                         > 100,000 RECORDS (big)
     ############################################################################
     else:
-        ########################################################## DOWNLOAD (DF)
+        ########################################################## DOWNLOAD (big)
         ########################################################################
         # Make the data request using the download function.  Results are
         # emailed.
@@ -1074,7 +1165,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         df0 = dfRaw.filter(items=keeper_keys, axis=1)
 
 
-        ###########################################  RENAME & DELETE FIELDS (DF)
+        ###########################################  RENAME & DELETE FIELDS (big)
         ########################################################################
         df0.rename(mapper={"id": "occ_id",
                            "decimalLatitude": "latitude",
@@ -1083,9 +1174,9 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                            "eventDate": "occurrenceDate"}, inplace=True, axis='columns')
 
         #df0.to_csv("T:/temp/dfOcc.csv")
-        print("Reading and saving downloaded records: " + str(datetime.now() - read1))
+        print("Downloaded and loaded records: " + str(datetime.now() - read1))
 
-        ############################  SUMMARY TABLE OF KEYS/FIELDS RETURNED (DF)
+        ############################  SUMMARY TABLE OF KEYS/FIELDS RETURNED (big)
         ########################################################################
         # Count entries per atrribute(column), reformat as new df with appropriate
         # columns.  Finally, insert into db.
@@ -1098,261 +1189,262 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         df_populated2.to_sql(name='gbif_fields_returned', con=conn, if_exists='replace')
         print("Summarized fields returned: " + str(datetime.now() - cheese1))
 
-        ############################### SUMMARY OF VALUES RETURNED (DF; REQUEST)
-        ########################################################################
-        # Create a table for storing unique attribute values that came back.
-        breadtime = datetime.now()
-        summary = {'datums': ['WGS84'],
-                   'issues': set([]),
-                   'bases': [],
-                   'institutions': [],
-                   'collections': [],
-                   'datasets':[],
-                   'generalizations': set([]),
-                   'remarks': set([]),
-                   'establishment': set([]),
-                   'IDqualifier': set([]),
-                   'samplingProtocols': set([])}
+    ############################### SUMMARY OF VALUES RETURNED (DF; REQUEST)
+    ########################################################################
+    # Create a table for storing unique attribute values that came back.
+    breadtime = datetime.now()
+    summary = {'datums': ['WGS84'],
+               'issues': set([]),
+               'bases': [],
+               'institutions': [],
+               'collections': [],
+               'datasets':[],
+               'generalizations': set([]),
+               'remarks': set([]),
+               'establishment': set([]),
+               'IDqualifier': set([]),
+               'samplingProtocols': set([])}
 
-        value_counts = {'bases': {},
-                          'datums': {'WGS84': 0},
-                          'issues': {},
-                          'institutions': {},
-                          'collections': {},
-                          'datasets': {},
-                          'samplingProtocols': {}}
+    value_counts = {'bases': {},
+                      'datums': {'WGS84': 0},
+                      'issues': {},
+                      'institutions': {},
+                      'collections': {},
+                      'datasets': {},
+                      'samplingProtocols': {}}
 
-        def get_vals(df, column_name):
-            '''
-            Return a set of unique values from a column
-            '''
-            stoat = df[column_name].unique()
-            stoat = [str(x).split(";") for x in stoat]
-            stoat1 = []
-            for x in stoat:
-                for y in x:
-                    if y == "" or y == None:
-                        stoat1.append('UNKNOWN') # ? Keep?
-                    else:
-                        stoat1.append(y)
-            return set(stoat1)
-
-        # datums - ? - couldn't find this info in the table
-
-        # issues
-        summary['issues'] = get_vals(df0, 'issues')
-
-        group = df0['occ_id'].groupby(df0['issues'])
-        gemstone = group.count()
-        for x in gemstone.index:
-            value_counts['issues'][x] = gemstone[x]
-
-        # basis or record
-        summary['bases'] = get_vals(df0, 'basisOfRecord')
-
-        group = df0['occ_id'].groupby(df0['basisOfRecord'])
-        gemstone = group.count()
-        for x in gemstone.index:
-            value_counts['bases'][x] = gemstone[x]
-
-        # institution
-        summary['institutions'] = get_vals(df0, 'institutionCode')
-
-        group = df0['occ_id'].groupby(df0['institutionCode'])
-        gemstone = group.count()
-        for x in gemstone.index:
-            value_counts['institutions'][x] = gemstone[x]
-
-        # collections
-        summary['collections'] = get_vals(df0, 'collectionCode')
-
-        group = df0['occ_id'].groupby(df0['collectionCode'])
-        gemstone = group.count()
-        for x in gemstone.index:
-            value_counts['collections'][x] = gemstone[x]
-
-        # datasets
-        summary['datasets'] = get_vals(df0, 'datasetName')
-
-        group = df0['occ_id'].groupby(df0['datasetName'])
-        gemstone = group.count()
-        for x in gemstone.index:
-            value_counts['datasets'][x] = gemstone[x]
-
-        # establishment means
-        try:
-            summary['establishment'] = get_vals(df0, 'establishmentMeans')
-        except:
-            summary['establishment'] = ""
-
-        # identification qualifier
-        summary['IDqualifier'] = get_vals(df0, 'identificationQualifier')
-
-        # protocols
-        summary['samplingProtocols'] = get_vals(df0, 'samplingProtocol')
-
-        group = df0['occ_id'].groupby(df0['samplingProtocol'])
-        gemstone = group.count()
-        for x in gemstone.index:
-            value_counts['samplingProtocols'][x] = gemstone[x]
-
-
-        # Remove duplicates, make strings for entry into summary table of attributes
-        cursor.executescript("""CREATE TABLE unique_values (step TEXT, field TEXT, vals TEXT);""")
-        for x in summary.keys():
-            vals = str(list(set(summary[x]))).replace('"', '')
-            stmt = """INSERT INTO unique_values (step, field, vals)
-                      VALUES ("request", "{0}", "{1}");""".format(x, vals)
-            cursor.execute(stmt)
-
-        # Store the value summary for the selected fields in a table.
-        cursor.executescript("""CREATE TABLE pre_filter_value_counts
-                                (attribute TEXT, value TEXT, count INTEGER);""")
-        for x in value_counts.keys():
-            attribute = value_counts[x]
-            for y in value_counts[x].keys():
-                z = value_counts[x][y]
-                frog = """INSERT INTO pre_filter_value_counts (attribute, value, count)
-                          VALUES ("{0}", "{1}", "{2}")""".format(x,y,z)
-                cursor.execute(frog)
-        print("Created summary table of request results: " + str(datetime.now() - breadtime))
-
-
-        ######################################  SUMMARIZE SOURCES PRE FILTER (DF)
-        ########################################################################
-        #
-        moss = df0.groupby(['institutionCode', 'collectionCode', 'datasetName'])[['occ_id']].size()
-        moss.to_sql(name='pre_filter_source_counts', con = conn, if_exists='replace')
-
-
-        ##########################################  ADD SOME DEFAULT VALUES (DF)
-        ########################################################################
-        if default_coordUncertainty != False:
-            df0.fillna(value={'coordinateUncertaintyInMeters': default_coordUncertainty,
-                              'individualCount': int(1)},
-                       inplace=True)
-
-
-        ###########################################################  FILTER (DF)
-        ########################################################################
-        fiddlertime = datetime.now()
-        # HAS COORDINATE UNCERTAINTY
-        if filt_coordUncertainty == 1:
-            df1 = df0[pd.isnull(df0['coordinateUncertaintyInMeters']) == False]
-        if filt_coordUncertainty == 0:
-            df1 = df0
-        # OTHER FILTERS
-        df2 = df1[df1['coordinateUncertaintyInMeters'] <= filt_maxcoord]
-        del df1
-        df3 = df2[df2['collectionCode'].isin(filt_collection) == False]
-        del df2
-        df4 = df3[df3['institutionCode'].isin(filt_instit) == False]
-        del df3
-        df5 = df4[df4['basisOfRecord'].isin(filt_bases) == False]
-        del df4
-        df7 = df5[df5['samplingProtocol'].isin(filt_sampling) == False]
-        del df5
-        # ISSUES - this one is more complex because multiple issues can be listed per record
-        # Method used is complex, but hopefully faster than simple iteration over all records
-        df7.fillna(value={'issues': ""}, inplace=True)
-        unique_issue = list(df7['issues'].unique())
-        violations = [x for x in unique_issue if len(set(str(x).split(";")) & set(filt_issues)) != 0] # entries that contain violations
-
-        df8 = df7[df7['issues'].isin(violations) == False] # Records without entries that are violations.
-        del df7
-        print("Performed post-request filtering: " + str(datetime.now() - fiddlertime))
-
-        newstime = datetime.now()
-        # Create any new columns needed
-        df8["remarks"] = df8['locality'] + ";" + df8['eventRemarks'] + ";" + df8['locationRemarks'] + ";" + df8['occurrenceRemarks']
-        df8["species_id"] = species_id
-        df8["request_id"] = gbif_req_id
-        df8["filter_id"] = gbif_filter_id
-        df8["retrievalDate"] = datetime.now()
-        df8["detection_distance"] = det_dist
-        df8["radius_meters"] = df8["detection_distance"] + df8["coordinateUncertaintyInMeters"]
-        df8["source"] = "gbif"
-        df8["doi_search"] = ""
-        df8["weight"] = 10
-        df8["weight_notes"] = ""
-        df8.drop(labels=["scientificName", "eventRemarks", "locality",
-                         "locationRemarks", "institutionID", "occurrenceRemarks"],
-                         inplace=True, axis=1)
-
-        print("Calculated new columns, deleted some too: " + str(datetime.now() - newstime))
-
-        ###################################################  INSERT INTO DB (DF)
-        ########################################################################
-        biggin = datetime.now()
+    def get_vals(df, column_name):
         '''
-        sql1 = """INSERT INTO occurrences ('occ_id', 'species_id', 'source',
-                                           'latitude', 'longitude',
-                                           'coordinateUncertaintyInMeters',
-                                           'occurrenceDate', 'request_id',
-                                           'filter_id', 'generalizations',
-                                           'remarks')
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);"""
-        for x in df8.index:
-            insert2 = [df8.loc[x,"id"], species_id, df8.loc[x,"source"],
-                       df8.loc[x,"decimalLatitude"], df8.loc[x,"decimalLongitude"],
-                       df8.loc[x,"coordinateUncertaintyInMeters"],
-                       df8.loc[x,"eventDate"], request_id, filter_id,
-                       df8.loc[x,"dataGeneralizations"], df8.loc[x,"remarks"]]
-            cursor.execute(sql1, [(insert2)])
-        conn.commit()
+        Return a set of unique values from a column
         '''
-        df8.to_sql(name='occurrences', con = conn, if_exists='replace',
-                   chunksize=1000)
-        sql_toad = '''SELECT AddGeometryColumn('occurrences', 'geom_xy4326', 4326,
-                                        'POINT', 'XY');'''
-        cursor.execute(sql_toad)
+        stoat = df[column_name].unique()
+        stoat = [str(x).split(";") for x in stoat]
+        stoat1 = []
+        for x in stoat:
+            for y in x:
+                if y == "" or y == None:
+                    stoat1.append('UNKNOWN') # ? Keep?
+                else:
+                    stoat1.append(y)
+        return set(stoat1)
 
-        print("Inserted records into table: " + str(datetime.now() - biggin))
+    # datums - ? - couldn't find this info in the table
 
-        ################################## SUMMARY OF VALUES KEPT (FILTER; JSON)
-        ########################################################################
-        kepttime = datetime.now()
-        summary = {'datums': ['WGS84'],
-                   'issues': set([]),
-                   'bases': [],
-                   'institutions': [],
-                   'collections': [],
-                   'generalizations': set([]),
-                   'remarks': set([]),
-                   'establishment': set([]),
-                   'IDqualifier': set([])}
+    # issues
+    summary['issues'] = get_vals(df0, 'issues')
 
-        # issues
-        summary['issues'] = get_vals(df8, 'issue')
+    group = df0['occ_id'].groupby(df0['issues'])
+    gemstone = group.count()
+    for x in gemstone.index:
+        value_counts['issues'][x] = gemstone[x]
 
-        # basis or record
-        summary['bases'] = get_vals(df8, 'basisOfRecord')
+    # basis or record
+    summary['bases'] = get_vals(df0, 'basisOfRecord')
 
-        # institution
-        summary['institutions'] = get_vals(df8, 'institutionID') | get_vals(df8, 'institutionCode')
+    group = df0['occ_id'].groupby(df0['basisOfRecord'])
+    gemstone = group.count()
+    for x in gemstone.index:
+        value_counts['bases'][x] = gemstone[x]
 
-        # collections
-        summary['collections'] = get_vals(df8, 'collectionCode')
+    # institution
+    summary['institutions'] = get_vals(df0, 'institutionCode')
 
-        # establishment means
-        try:
-            summary['establishment'] = get_vals(df8, 'establishmentMeans')
-        except:
-            summary['establishment'] = ""
+    group = df0['occ_id'].groupby(df0['institutionCode'])
+    gemstone = group.count()
+    for x in gemstone.index:
+        value_counts['institutions'][x] = gemstone[x]
 
-        # identification qualifier
-        summary['IDqualifier'] = get_vals(df8, 'identificationQualifier')
+    # collections
+    summary['collections'] = get_vals(df0, 'collectionCode')
 
-        # protocols
-        summary['samplingProtocols'] = get_vals(df8, 'samplingProtocol')
+    group = df0['occ_id'].groupby(df0['collectionCode'])
+    gemstone = group.count()
+    for x in gemstone.index:
+        value_counts['collections'][x] = gemstone[x]
 
-        # Remove duplicates, make strings for entry into summary table of attributes
-        for x in summary.keys():
-            vals = str(list(set(summary[x]))).replace('"', '')
-            stmt = """INSERT INTO unique_values (step, field, vals)
-                      VALUES ("filter", "{0}", "{1}");""".format(x, vals)
-            cursor.execute(stmt)
-        print("Summarized unique values retained: " + str(datetime.now() - kepttime))
+    # datasets
+    summary['datasets'] = get_vals(df0, 'datasetName')
+
+    group = df0['occ_id'].groupby(df0['datasetName'])
+    gemstone = group.count()
+    for x in gemstone.index:
+        value_counts['datasets'][x] = gemstone[x]
+
+    # establishment means
+    try:
+        summary['establishment'] = get_vals(df0, 'establishmentMeans')
+    except:
+        summary['establishment'] = ""
+
+    # identification qualifier
+    summary['IDqualifier'] = get_vals(df0, 'identificationQualifier')
+
+    # protocols
+    summary['samplingProtocols'] = get_vals(df0, 'samplingProtocol')
+
+    group = df0['occ_id'].groupby(df0['samplingProtocol'])
+    gemstone = group.count()
+    for x in gemstone.index:
+        value_counts['samplingProtocols'][x] = gemstone[x]
+
+
+    # Remove duplicates, make strings for entry into summary table of attributes
+    cursor.executescript("""CREATE TABLE unique_values (step TEXT, field TEXT, vals TEXT);""")
+    for x in summary.keys():
+        vals = str(list(set(summary[x]))).replace('"', '')
+        stmt = """INSERT INTO unique_values (step, field, vals)
+                  VALUES ("request", "{0}", "{1}");""".format(x, vals)
+        cursor.execute(stmt)
+
+    # Store the value summary for the selected fields in a table.
+    cursor.executescript("""CREATE TABLE pre_filter_value_counts
+                            (attribute TEXT, value TEXT, count INTEGER);""")
+    for x in value_counts.keys():
+        attribute = value_counts[x]
+        for y in value_counts[x].keys():
+            z = value_counts[x][y]
+            frog = """INSERT INTO pre_filter_value_counts (attribute, value, count)
+                      VALUES ("{0}", "{1}", "{2}")""".format(x,y,z)
+            cursor.execute(frog)
+    print("Created summary table of request results: " + str(datetime.now() - breadtime))
+
+
+    ######################################  SUMMARIZE SOURCES PRE FILTER (big)
+    ########################################################################
+    #
+    moss = df0.groupby(['institutionCode', 'collectionCode', 'datasetName'])[['occ_id']].size()
+    moss.to_sql(name='pre_filter_source_counts', con = conn, if_exists='replace')
+
+
+    ##########################################  ADD SOME DEFAULT VALUES (big)
+    ########################################################################
+    if default_coordUncertainty != False:
+        df0.fillna(value={'coordinateUncertaintyInMeters': default_coordUncertainty,
+                          'individualCount': int(1)},
+                   inplace=True)
+
+
+    ###########################################################  FILTER (big)
+    ########################################################################
+    fiddlertime = datetime.now()
+    # HAS COORDINATE UNCERTAINTY
+    if filt_coordUncertainty == 1:
+        df1 = df0[pd.isnull(df0['coordinateUncertaintyInMeters']) == False]
+    if filt_coordUncertainty == 0:
+        df1 = df0
+    # OTHER FILTERS
+    print(filt_maxcoord, type(filt_maxcoord))
+    df2 = df1[df1['coordinateUncertaintyInMeters'] <= filt_maxcoord]
+    del df1
+    df3 = df2[df2['collectionCode'].isin(filt_collection) == False]
+    del df2
+    df4 = df3[df3['institutionCode'].isin(filt_instit) == False]
+    del df3
+    df5 = df4[df4['basisOfRecord'].isin(filt_bases) == False]
+    del df4
+    df7 = df5[df5['samplingProtocol'].isin(filt_sampling) == False]
+    del df5
+    # ISSUES - this one is more complex because multiple issues can be listed per record
+    # Method used is complex, but hopefully faster than simple iteration over all records
+    df7.fillna(value={'issues': ""}, inplace=True)
+    unique_issue = list(df7['issues'].unique())
+    violations = [x for x in unique_issue if len(set(str(x).split(";")) & set(filt_issues)) != 0] # entries that contain violations
+
+    df8 = df7[df7['issues'].isin(violations) == False] # Records without entries that are violations.
+    del df7
+    print("Performed post-request filtering: " + str(datetime.now() - fiddlertime))
+
+    newstime = datetime.now()
+    # Create any new columns needed
+    df8["remarks"] = df8['locality'] + ";" + df8['eventRemarks'] + ";" + df8['locationRemarks'] + ";" + df8['occurrenceRemarks']
+    df8["species_id"] = species_id
+    df8["request_id"] = gbif_req_id
+    df8["filter_id"] = gbif_filter_id
+    df8["retrievalDate"] = datetime.now()
+    df8["detection_distance"] = det_dist
+    df8["radius_meters"] = df8["detection_distance"] + df8["coordinateUncertaintyInMeters"]
+    df8["source"] = "gbif"
+    df8["doi_search"] = ""
+    df8["weight"] = 10
+    df8["weight_notes"] = ""
+    df8.drop(labels=["scientificName", "eventRemarks", "locality",
+                     "locationRemarks", "institutionID", "occurrenceRemarks"],
+                     inplace=True, axis=1)
+
+    print("Calculated new columns, deleted some too: " + str(datetime.now() - newstime))
+
+    ###################################################  INSERT INTO DB (big)
+    ########################################################################
+    biggin = datetime.now()
+    '''
+    sql1 = """INSERT INTO occurrences ('occ_id', 'species_id', 'source',
+                                       'latitude', 'longitude',
+                                       'coordinateUncertaintyInMeters',
+                                       'occurrenceDate', 'request_id',
+                                       'filter_id', 'generalizations',
+                                       'remarks')
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);"""
+    for x in df8.index:
+        insert2 = [df8.loc[x,"id"], species_id, df8.loc[x,"source"],
+                   df8.loc[x,"decimalLatitude"], df8.loc[x,"decimalLongitude"],
+                   df8.loc[x,"coordinateUncertaintyInMeters"],
+                   df8.loc[x,"eventDate"], request_id, filter_id,
+                   df8.loc[x,"dataGeneralizations"], df8.loc[x,"remarks"]]
+        cursor.execute(sql1, [(insert2)])
+    conn.commit()
+    '''
+    df8.to_sql(name='occurrences', con = conn, if_exists='replace',
+               chunksize=1000)
+    sql_toad = '''SELECT AddGeometryColumn('occurrences', 'geom_xy4326', 4326,
+                                    'POINT', 'XY');'''
+    cursor.execute(sql_toad)
+
+    print("Inserted records into table: " + str(datetime.now() - biggin))
+
+    ################################## SUMMARY OF VALUES KEPT (FILTER; JSON)
+    ########################################################################
+    kepttime = datetime.now()
+    summary = {'datums': ['WGS84'],
+               'issues': set([]),
+               'bases': [],
+               'institutions': [],
+               'collections': [],
+               'generalizations': set([]),
+               'remarks': set([]),
+               'establishment': set([]),
+               'IDqualifier': set([])}
+
+    # issues
+    summary['issues'] = get_vals(df8, 'issues')
+
+    # basis or record
+    summary['bases'] = get_vals(df8, 'basisOfRecord')
+
+    # institution
+    summary['institutions'] = get_vals(df8, 'institutionCode')
+
+    # collections
+    summary['collections'] = get_vals(df8, 'collectionCode')
+
+    # establishment means
+    try:
+        summary['establishment'] = get_vals(df8, 'establishmentMeans')
+    except:
+        summary['establishment'] = ""
+
+    # identification qualifier
+    summary['IDqualifier'] = get_vals(df8, 'identificationQualifier')
+
+    # protocols
+    summary['samplingProtocols'] = get_vals(df8, 'samplingProtocol')
+
+    # Remove duplicates, make strings for entry into summary table of attributes
+    for x in summary.keys():
+        vals = str(list(set(summary[x]))).replace('"', '')
+        stmt = """INSERT INTO unique_values (step, field, vals)
+                  VALUES ("filter", "{0}", "{1}");""".format(x, vals)
+        cursor.execute(stmt)
+    print("Summarized unique values retained: " + str(datetime.now() - kepttime))
 
     ################################################  MAKE POINT GEOMETRY COLUMN
     ############################################################################
