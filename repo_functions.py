@@ -580,6 +580,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                 insertDict[z] = insertDict[z] + ["UNKNOWN"]
         insertDF = pd.DataFrame(insertDict)
         df0 = dfRaw.append(insertDF, ignore_index=True, sort=False)
+        df0copy = df0.copy() # a copy for gbif_fields_returned below
 
         ###########################################  RENAME & DELETE FIELDS
         ########################################################################
@@ -589,7 +590,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                            "eventDate": "occurrenceDate"}, inplace=True, axis='columns')
         df0.drop(["issue", "id"], inplace=True, axis=1)
         df0['coordinateUncertaintyInMeters'].replace(to_replace="UNKNOWN", value=None, inplace=True)
-        #df0.astype('string')
         df0 = df0.astype({'coordinateUncertaintyInMeters': 'float'})
 
         '''
@@ -1078,20 +1078,24 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         print("Updated individuaCount column: " + str(datetime.now() - inserttime3))
 
         '''
-        '''
+
         ############################  SUMMARY TABLE OF KEYS/FIELDS RETURNED (SMALL)
         ########################################################################
         # Count entries per atrribute(column), reformat as new df with appropriate
         # columns.  Finally, insert into db.
-        cheese1 = datetime.now()
-        df_populated1 = pd.DataFrame(dfRaw.count(axis=0).T.iloc[1:])
-        df_populated1['included(n)'] = len(dfRaw)
+        # NOTE: When pulling from df0copy, only a specified subset of keys are
+        # assessed (keeper_keys).  For a more complete picture, alloccs must be
+        # assessed.  That has historically been very slow.
+        newt = datetime.now()
+        df0copy.where(df0copy != 'UNKNOWN', inplace=True)
+        df_populated1 = pd.DataFrame(df0copy.count(axis=0).T.iloc[1:])
+        #df_populated1['included(n)'] = df_populated1[0] # Can this be determined from alloccs?  Quickly?
         df_populated1['populated(n)'] = df_populated1[0]
         df_populated2 = df_populated1.filter(items=['included(n)', 'populated(n)'], axis='columns')
         df_populated2.index.name = 'attribute'
         df_populated2.to_sql(name='gbif_fields_returned', con=conn, if_exists='replace')
-        print("Summarized fields returned: " + str(datetime.now() - cheese1))
-        '''
+        print("Summarized fields returned: " + str(datetime.now() - newt))
+
     ############################################################################
     #                         > 100,000 RECORDS (big)
     ############################################################################
@@ -1180,14 +1184,14 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
         ########################################################################
         # Count entries per atrribute(column), reformat as new df with appropriate
         # columns.  Finally, insert into db.
-        cheese1 = datetime.now()
+        feather = datetime.now()
         df_populated1 = pd.DataFrame(dfRaw.count(axis=0).T.iloc[1:])
         df_populated1['included(n)'] = len(dfRaw)
         df_populated1['populated(n)'] = df_populated1[0]
         df_populated2 = df_populated1.filter(items=['included(n)', 'populated(n)'], axis='columns')
         df_populated2.index.name = 'attribute'
         df_populated2.to_sql(name='gbif_fields_returned', con=conn, if_exists='replace')
-        print("Summarized fields returned: " + str(datetime.now() - cheese1))
+        print("Summarized fields returned: " + str(datetime.now() - feather))
 
     ############################### SUMMARY OF VALUES RETURNED (DF; REQUEST)
     ########################################################################
