@@ -251,8 +251,8 @@ def getGBIFcode(name, rank='species'):
     key = species.name_backbone(name = name, rank='species')['usageKey']
     return key
 
-def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
-                              gbif_filter_id, default_coordUncertainty,
+def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
+                              gbif_req_id, gbif_filter_id, default_coordUncertainty,
                               outDir, summary_name, username, password, email):
     """
     Retrieves GAP range from ScienceBase and occurrence records from APIs. Filters
@@ -264,6 +264,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     codeDir -- directory of this code repo.
     species_id -- project id for the species concept.
     inDir -- directory containing key inputs such as downloaded gap ranges.
+    paramdb -- path to the parameter database.
     spdb -- occurrence record database to be created by this function.
     gbif_req_id -- GBIF request ID for the process.
     gbif_filter_id -- GBIF filter ID for the process.
@@ -310,7 +311,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     #############################################################################
     os.chdir(codeDir)
     # Get species info from requests database
-    conn2 = sqlite3.connect(codeDir + 'parameters.sqlite', isolation_level='DEFERRED')
+    conn2 = sqlite3.connect(paramdb, isolation_level='DEFERRED')
     cursor2 = conn2.cursor()
     sql_tax = """SELECT gbif_id, common_name, scientific_name,
                         detection_distance_meters, gap_id, geometry

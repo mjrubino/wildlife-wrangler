@@ -46,9 +46,26 @@ This framework is designed to have certain features in order to provide summarie
 * The older albers projection (EPSG: 102008) abandoned in favor of EPSG: 50570.
 * Added "weight" and "weight_notes" columns to output database.  This facilitates weighting records based upon provider in applications and analyses.
 
+## GBIF fields
+* GBIF fields that are relevant to key questions about records
+What? -- "id", "gbifID", "individualCount", "identificationQualifier"
+
+When? -- "eventDate", "retrievalDate"
+
+Where? -- "coordinateUncertaintyInMeters", "decimalLatitude", "decimalLongitude", "footprintWKT", "geodeticDatum"
+
+Who provided? -- "collectionCode", "institutionCode", "datasetName"
+
+How obtained? -- "basisOfRecord", "samplingProtocol", "establishmentMeans",
+
+Issues, notes, comments -- "issue" or "issues", "locality", "eventRemarks", "locationRemarks", "occurrenceRemarks"
+
 ## Coming soon
 * Ability to incorporate records directly from a copy of the eBird data set that user has downloaded.
 * Generalization of framework to better facilitate multiple users.  Parameters.sqlite will be replaced with a template that user can build from.  Each user will access a local copy of parameters.sqlite filled out for their needs.
+* Debugging handling of duplicates.
+* Making species level geometry filtering optional if polygon is present in species concepts table.
+* Incorporating GBIF fields "dataGeneralizations", "georeferenceRemarks", and "informationWitheld"
 
 ## Inputs
 Data is gathered from catalogs and databases through API's so there are few inputs.  However, the 'parameters.sqlite' database is needed, which includes tables for species-concepts, data request parameters, and post-request filtering criteria.
