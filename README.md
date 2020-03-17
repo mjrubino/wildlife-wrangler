@@ -57,7 +57,7 @@ GBIF fields that are relevant to key questions about records
 * Occurrence record database (output) now includes column for weight that users can use to omit or devalue undesirable records.
 * Handling requests of > 200,000 records.
 * The older albers projection (EPSG: 102008) abandoned in favor of EPSG: 50570.
-* Generalization of framework to better facilitate multiple users.  Parameters.sqlite will be replaced with a template that user can build from.  Each user will access a local copy of parameters.sqlite filled out for their needs.
+* Generalization of framework to better facilitate multiple users.  Parameters.sqlite replaced with a template that user can build from.  Each user will access a local copy of parameters.sqlite filled out for their needs.
 
 ## Coming soon
 * Improved handling of duplicates.
