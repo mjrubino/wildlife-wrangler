@@ -57,11 +57,11 @@ GBIF fields that are relevant to key questions about records
 * Occurrence record database (output) now includes column for weight that users can use to omit or devalue undesirable records.
 * Handling requests of > 200,000 records.
 * The older albers projection (EPSG: 102008) abandoned in favor of EPSG: 50570.
+* Generalization of framework to better facilitate multiple users.  Parameters.sqlite will be replaced with a template that user can build from.  Each user will access a local copy of parameters.sqlite filled out for their needs.
 
 ## Coming soon
-* Debugging handling of duplicates.
+* Improved handling of duplicates.
 * Ability to incorporate records directly from a copy of the eBird EBD that user has downloaded.
-* Generalization of framework to better facilitate multiple users.  Parameters.sqlite will be replaced with a template that user can build from.  Each user will access a local copy of parameters.sqlite filled out for their needs.
 * Making species level geometry filtering optional if polygon is present in species concepts table.
 * Incorporating GBIF fields "dataGeneralizations", "georeferenceRemarks", and "informationWitheld".
 * Incorporating species concept start and end dates.
