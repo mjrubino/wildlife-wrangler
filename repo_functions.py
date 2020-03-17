@@ -274,7 +274,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
     sp_geometry -- True or False to use geometry saved with species concept when
         filtering records.  Request geometry is always used if provided.
     """
-    sp_geometry = True #  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    sp_geometry = True #  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  NEEDS TO BE IMPLEMENTED
     import pandas as pd
     pd.set_option('display.width', 1000)
     import sqlite3
@@ -1018,8 +1018,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
 
     if duplicates_OK == "False":
         duptime1 = datetime.now()
-        conn3 = sqlite3.connect(spdb)
-        cursor3 = conn3.cursor()
 
         # Get a count of duplicates to report
         sql_dupcnt = """SELECT count(occ_id)
@@ -1029,7 +1027,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                              FROM occurrences
                              GROUP BY latitude, longitude, occurrenceDate
                              HAVING max(individualCount));"""
-        dupcount = cursor3.execute(sql_dupcnt).fetchone()[0]
+        dupcount = cursor.execute(sql_dupcnt).fetchone()[0]
 
         # Delete duplicate records without the highest individualCount among duplicates.
         sql_deldup = """DELETE
@@ -1039,15 +1037,11 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                              FROM occurrences
                              GROUP BY latitude, longitude, occurrenceDate
                              HAVING max(individualCount));"""
-        cursor3.execute(sql_deldup)
+        cursor.execute(sql_deldup)
 
         duptime2 = datetime.now()
         print("Removed duplicates: " + str(duptime2 - duptime1))
         print("\t{0} duplicates were deleted".format(dupcount))
-
-        conn3.commit()
-        conn3.close()
-        del cursor3
 
     if duplicates_OK == "True":
         print("DUPLICATES ON LATITUDE, LONGITUDE, DATE-TIME INCLUDED")
@@ -1111,7 +1105,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, spdb, gbif_req_id,
                       '{0}{1}_points', 'utf-8');""".format(outDir,
                                                            summary_name))
     conn.commit()
-    #conn.close()
+    conn.close()
 
     print("Exported maps: " + str(datetime.now() - exporttime1))
     print("\nRecords saved in {0}".format(spdb))
