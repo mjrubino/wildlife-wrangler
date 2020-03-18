@@ -623,7 +623,8 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
         dfK = pd.DataFrame(index=keys2, columns=['included(n)', 'populated(n)'])
         dfK['included(n)'] = 0
         dfK['populated(n)'] = 0
-        requestsummarytime1 = datetime.now()   #  START SLOW
+        requestsummarytime1 = datetime.now()
+        #####################################  START SLOW
         for t in alloccs:
             for y in t.keys():
                 dfK.loc[y, 'included(n)'] += 1
@@ -635,7 +636,8 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
                         pass
                     elif len(t[y]) > 0:
                         dfK.loc[y, 'populated(n)'] += 1
-        print("Summarized fields returned: " + str(datetime.now() - requestsummarytime1))#SLOW PART HAS ENDED BY HERE
+        print("Summarized fields returned: " + str(datetime.now() - requestsummarytime1))
+        ######################################  END SLOW
         dfK.sort_index(inplace=True)
         dfK.index.name = 'attribute'
         dfK.to_sql(name='gbif_fields_returned', con=conn, if_exists='replace')
