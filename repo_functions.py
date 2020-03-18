@@ -591,6 +591,9 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
         df0.drop(["issue", "id"], inplace=True, axis=1)
         df0['coordinateUncertaintyInMeters'].replace(to_replace="UNKNOWN", value=None, inplace=True)
         df0 = df0.astype({'coordinateUncertaintyInMeters': 'float'})
+        df0['individualCount'].replace(to_replace="UNKNOWN", value=1, inplace=True)
+
+
         #df0.set_index(['occ_id'], inplace=True, drop=False)
 
         ############################  SUMMARY TABLE OF KEYS/FIELDS RETURNED (SMALL)
@@ -859,22 +862,22 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
     print("Created summary table of request results: " + str(datetime.now() - breadtime))
 
 
-    ######################################  SUMMARIZE SOURCES PRE FILTER (big)
+    ##########################################  SUMMARIZE SOURCES PRE FILTER
     ########################################################################
     #
     moss = df0.groupby(['institutionCode', 'collectionCode', 'datasetName'])[['occ_id']].size()
     moss.to_sql(name='pre_filter_source_counts', con = conn, if_exists='replace')
 
 
-    ##########################################  ADD SOME DEFAULT VALUES (big)
+    ###############################################  ADD SOME DEFAULT VALUES
     ########################################################################
     if default_coordUncertainty != False:
-        df0.fillna(value={'coordinateUncertaintyInMeters': default_coordUncertainty,
-                          'individualCount': int(1)},
+        df0.fillna(value={'coordinateUncertaintyInMeters': default_coordUncertainty},
                    inplace=True)
+    df0.fillna(value={'individualCount': int(1)}, inplace=True)
 
 
-    ###########################################################  FILTER (big)
+    ################################################################  FILTER
     ########################################################################
     fiddlertime = datetime.now()
     # HAS COORDINATE UNCERTAINTY
