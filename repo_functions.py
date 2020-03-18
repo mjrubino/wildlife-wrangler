@@ -1056,9 +1056,9 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
     # the sum of detectiondistance from requests.species_concepts and
     # coordinate uncertainty in meters here.
     buffertime1 = datetime.now()
-    requestsDB = inDir + 'requests.sqlite'  #####???????????????????????????????????????
+    #requestsDB = inDir + 'requests.sqlite'  #####???????????????????????????????????????
     sql_det = """
-            ATTACH DATABASE '{0}' AS requests;
+            /*ATTACH DATABASE '{0}' AS requests;*/
 
             UPDATE occurrences
             SET detection_distance = {1};
@@ -1066,7 +1066,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
             UPDATE occurrences
             SET radius_meters = detection_distance + coordinateUncertaintyInMeters;
 
-            DETACH DATABASE requests;
+            /*DETACH DATABASE requests;*/
             """.format(requestsDB, det_dist)
     cursor.executescript(sql_det)
 
