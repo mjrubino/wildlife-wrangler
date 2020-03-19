@@ -397,50 +397,46 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
     """
     Retrieve filter parameters from the parameters database.
     """
+    def get_filter(column, where_column, table):
+        '''
+        Get the values of a filter from the parameters database
+
+        Arguments:
+        column -- string name of column to select from.
+        where_column -- string name of column to condition selection on.
+        table -- string name of table to query
+        '''
+        if table == 'gbif_requests':
+            sql = """ SELECT {0} FROM {2} WHERE request_id = '{1}'""".format(column,
+                                                                         where_column,
+                                                                         table)
+        if table == 'gbif_filters':
+            sql = """ SELECT {0} FROM {2} WHERE filter_id = '{1}'""".format(column,
+                                                                         where_column,
+                                                                         table)
+        filter = cursor2.execute(sql).fetchone()[0]
+        return filter
+
     ############################# RETRIEVE REQUEST PARAMETERS
     # Up-front filters are an opportunity to lighten the load from the start.
-    sql_twi = """ SELECT lat_range FROM gbif_requests
-                  WHERE request_id = '{0}'""".format(gbif_req_id)
-    latRange = cursor2.execute(sql_twi).fetchone()[0]
-
-    sql_twi = """ SELECT lon_range FROM gbif_requests
-                  WHERE request_id = '{0}'""".format(gbif_req_id)
-    lonRange = cursor2.execute(sql_twi).fetchone()[0]
-
-    sql_twi = """ SELECT years_range FROM gbif_requests
-                  WHERE request_id = '{0}'""".format(gbif_req_id)
-    years = cursor2.execute(sql_twi).fetchone()[0]
-
-    sql_twi = """ SELECT months_range FROM gbif_requests
-                  WHERE request_id = '{0}'""".format(gbif_req_id)
-    months = cursor2.execute(sql_twi).fetchone()[0]
-
-    sql_twi = """ SELECT geoissue FROM gbif_requests
-                  WHERE request_id = '{0}'""".format(gbif_req_id)
-    geoIssue = cursor2.execute(sql_twi).fetchone()[0]
+    latRange = get_filter('lat_range', gbif_req_id, 'gbif_requests')
+    lonRange = get_filter('lon_range', gbif_req_id, 'gbif_requests')
+    years = get_filter('years_range', gbif_req_id, 'gbif_requests')
+    months = get_filter('months_range', gbif_req_id, 'gbif_requests')
+    geoIssue = get_filter('geoissue', gbif_req_id, 'gbif_requests')
     if geoIssue == 'None':
         geoIssue = None
-
-    sql_twi = """ SELECT coordinate FROM gbif_requests
-                  WHERE request_id = '{0}'""".format(gbif_req_id)
-    coordinate = cursor2.execute(sql_twi).fetchone()[0]
-
-    sql_twi = """ SELECT country FROM gbif_requests
-                  WHERE request_id = '{0}'""".format(gbif_req_id)
-    country = cursor2.execute(sql_twi).fetchone()[0]
+    coordinate = get_filter('coordinate', gbif_req_id, 'gbif_requests')
+    country = get_filter('country', gbif_req_id, 'gbif_requests')
     if country == "None":
         country = None
+    poly0 = get_filter('gometry', gbif_req_id, 'gbif_requests')
 
-    ########### SORT OUT GEOMETRY FILTERS
-    # Get the geometry from the request filter set
-    sql_poly = """ SELECT geometry FROM gbif_requests
-                  WHERE request_id = '{0}'""".format(gbif_req_id)
-    poly0 = cursor2.execute(sql_poly).fetchone()[0]
+    ################################################ SORT OUT GEOMETRIES
     # A geometry could also be stated for the species, assess what to do
     # It could also be that user opted not to use species geometry.
     if sp_geometry == False:
         sp_geom = None
-
     if poly0 == None and sp_geom == None:
         poly = None
     elif poly0 != None and sp_geom == None:
@@ -455,54 +451,36 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
         poly = shapely.wkt.dumps(poly_intersection)
 
     ###################  RETRIEVE POST-REQUEST FILTER PARAMTERS
-    sql_green = """SELECT has_coordinate_uncertainty FROM gbif_filters
-                   WHERE filter_id = '{0}';""".format(gbif_filter_id)
-    filt_coordUncertainty = cursor2.execute(sql_green).fetchone()[0]
-
-    sql_maxcoord = """SELECT max_coordinate_uncertainty FROM gbif_filters
-                   WHERE filter_id = '{0}';""".format(gbif_filter_id)
-    filt_maxcoord = cursor2.execute(sql_maxcoord).fetchone()[0]
-
-    sql_collection = """SELECT collection_codes_omit FROM gbif_filters
-                   WHERE filter_id = '{0}';""".format(gbif_filter_id)
-    filt_collection = cursor2.execute(sql_collection).fetchone()[0]
+    filt_coordUncertainty = get_filter('has_coordinate_uncertainty',
+                                       gbif_filter_id, 'gbif_filters')
+    filt_maxcoord = get_filter('max_coordinate_uncertainty', gbif_filter_id,
+                               'gbif_filters')
+    filt_collection = get_filter('collection_codes_omit', gbif_filter_id,
+                                 'gbif_filters')
     if type(filt_collection) == str:
         filt_collection = list(filt_collection.split(', '))
     else:
         filt_collection = []
-
-    sql_instit = """SELECT institutions_omit FROM gbif_filters
-                   WHERE filter_id = '{0}';""".format(gbif_filter_id)
-    filt_instit = cursor2.execute(sql_instit).fetchone()[0]
+    filt_instit = get_filter('institutions_omit', gbif_filter_id, 'gbif_filters')
     if type(filt_instit) == str:
         filt_instit = list(filt_instit.split(', '))
     else:
         filt_instit = []
-
-    sql_bases = """SELECT bases_omit FROM gbif_filters
-                   WHERE filter_id = '{0}';""".format(gbif_filter_id)
-    filt_bases = cursor2.execute(sql_bases).fetchone()[0]
+    filt_bases = get_filter('bases_omit', gbif_filter_id, 'gbif_filters')
     if type(filt_bases) == str:
         filt_bases = list(filt_bases.split(', '))
     else:
         filt_bases = []
-
-    sql_issues = """SELECT issues_omit FROM gbif_filters
-                   WHERE filter_id = '{0}';""".format(gbif_filter_id)
-    filt_issues = cursor2.execute(sql_issues).fetchone()[0]
+    filt_issues = get_filter('issues_omit', gbif_filter_id, 'gbif_filters')
     if type(filt_issues) == str:
         filt_issues = list(filt_issues.split(', '))
     else:
         filt_issues = []
-
-    sql_sampling = """SELECT sampling_protocols_omit FROM gbif_filters
-                   WHERE filter_id = '{0}';""".format(gbif_filter_id)
-    filt_sampling = cursor2.execute(sql_sampling).fetchone()[0]
+    filt_sampling = get_filter('sampling_protocols_omit', gbif_filter_id, 'gbif_filters')
     if type(filt_sampling) == str:
         filt_sampling = list(filt_sampling.split(', '))
     else:
         filt_sampling = []
-
     print("Got request params and sorted out geometry constraints: " + str(datetime.now() - requesttime1))
     requesttime2 = datetime.now()
 
@@ -656,40 +634,33 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
         # First, build a query list.  NoneType values cause problems, so only
         # add arguments if their value isn't NoneType.
         download_filters = ['taxonKey = {0}'.format(gbif_id)]
-
         if coordinate != None:
             download_filters.append('hasCoordinate = {0}'.format(coordinate))
-
         if country != None:
             download_filters.append('country = {0}'.format(country))
-
         if years != None:
             download_filters.append('year >= {0}'.format(years.split(",")[0]))
             download_filters.append('year <= {0}'.format(years.split(",")[1]))
-
         if months != None:
             download_filters.append('month >= {0}'.format(months.split(",")[0]))
             download_filters.append('month <= {0}'.format(months.split(",")[1]))
-
         if poly != None:
             download_filters.append('geometry within {0}'.format(poly))
-
         if geoIssue != None:
             download_filters.append('hasGeospatialIssue = {0}'.format(geoIssue))
-
         if latRange != None:
             download_filters.append('decimalLatitude >= {0}'.format(latRange.split(",")[0]))
             download_filters.append('decimalLatitude <= {0}'.format(latRange.split(",")[1]))
         if lonRange !=None:
             download_filters.append('decimalLongitude >= {0}'.format(lonRange.split(",")[0]))
             download_filters.append('decimalLongitude <= {0}'.format(lonRange.split(",")[1]))
-
         bigdown1 = datetime.now()
         d = occurrences.download(download_filters,
                                  pred_type='and',
                                  user = username,
                                  pwd = password,
                                  email = email)
+
         # Get the value of the download key
         dkey = d[0]
 
@@ -742,7 +713,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
         df_populated2.to_sql(name='gbif_fields_returned', con=conn, if_exists='replace')
         print("Summarized fields returned: " + str(datetime.now() - feather))
 
-    ############################### SUMMARY OF VALUES RETURNED (DF; REQUEST)
+    ############################################# SUMMARY OF VALUES RETURNED
     ########################################################################
     # Create a table for storing unique attribute values that came back.
     breadtime = datetime.now()
@@ -781,65 +752,45 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
                     stoat1.append(y)
         return set(stoat1)
 
+    def set_value_counts(dataframe, groupby, key):
+        '''
+        Determine how many records there are with each value of an attribute.
+
+        dataframe -- dataframe object to work on.
+        groupby -- string column name to group by.
+        key -- string key name in value_counts dict to populate a value for.
+        '''
+        group = dataframe['occ_id'].groupby(dataframe[groupby])
+        skua = group.count()
+        for x in skua.index:
+            value_counts[key][x] = skua[x]
+
     # datums - ? - couldn't find this info in the table
 
-    # issues
     summary['issues'] = get_vals(df0, 'issues')
+    set_value_counts(df0, 'issues', 'issues')
 
-    group = df0['occ_id'].groupby(df0['issues'])
-    gemstone = group.count()
-    for x in gemstone.index:
-        value_counts['issues'][x] = gemstone[x]
-
-    # basis or record
     summary['bases'] = get_vals(df0, 'basisOfRecord')
+    set_value_counts(df0, 'basisOfRecord', 'bases')
 
-    group = df0['occ_id'].groupby(df0['basisOfRecord'])
-    gemstone = group.count()
-    for x in gemstone.index:
-        value_counts['bases'][x] = gemstone[x]
-
-    # institution
     summary['institutions'] = get_vals(df0, 'institutionCode')
+    set_value_counts(df0, 'institutionCode', 'institutions')
 
-    group = df0['occ_id'].groupby(df0['institutionCode'])
-    gemstone = group.count()
-    for x in gemstone.index:
-        value_counts['institutions'][x] = gemstone[x]
-
-    # collections
     summary['collections'] = get_vals(df0, 'collectionCode')
+    set_value_counts(df0, 'collectionCode', 'collections')
 
-    group = df0['occ_id'].groupby(df0['collectionCode'])
-    gemstone = group.count()
-    for x in gemstone.index:
-        value_counts['collections'][x] = gemstone[x]
-
-    # datasets
     summary['datasets'] = get_vals(df0, 'datasetName')
+    set_value_counts(df0, 'datasetName', 'datasets')
 
-    group = df0['occ_id'].groupby(df0['datasetName'])
-    gemstone = group.count()
-    for x in gemstone.index:
-        value_counts['datasets'][x] = gemstone[x]
-
-    # establishment means
     try:
         summary['establishment'] = get_vals(df0, 'establishmentMeans')
     except:
         summary['establishment'] = ""
 
-    # identification qualifier
     summary['IDqualifier'] = get_vals(df0, 'identificationQualifier')
 
-    # protocols
     summary['samplingProtocols'] = get_vals(df0, 'samplingProtocol')
-
-    group = df0['occ_id'].groupby(df0['samplingProtocol'])
-    gemstone = group.count()
-    for x in gemstone.index:
-        value_counts['samplingProtocols'][x] = gemstone[x]
-
+    set_value_counts(df0, 'samplingProtocol', 'samplingProtocols')
 
     # Remove duplicates, make strings for entry into summary table of attributes
     cursor.executescript("""CREATE TABLE unique_values (step TEXT, field TEXT, vals TEXT);""")
@@ -864,7 +815,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
 
     ##########################################  SUMMARIZE SOURCES PRE FILTER
     ########################################################################
-    #
     moss = df0.groupby(['institutionCode', 'collectionCode', 'datasetName'])[['occ_id']].size()
     moss.to_sql(name='pre_filter_source_counts', con = conn, if_exists='replace')
 
@@ -880,12 +830,10 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
     ################################################################  FILTER
     ########################################################################
     fiddlertime = datetime.now()
-    # HAS COORDINATE UNCERTAINTY
     if filt_coordUncertainty == 1:
         df1 = df0[pd.isnull(df0['coordinateUncertaintyInMeters']) == False]
     if filt_coordUncertainty == 0:
         df1 = df0
-    # OTHER FILTERS
     df2 = df1[df1['coordinateUncertaintyInMeters'] <= filt_maxcoord]
     del df1
     df3 = df2[df2['collectionCode'].isin(filt_collection) == False]
@@ -896,8 +844,10 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
     del df4
     df7 = df5[df5['samplingProtocol'].isin(filt_sampling) == False]
     del df5
-    # ISSUES - this one is more complex because multiple issues can be listed per record
-    # Method used is complex, but hopefully faster than simple iteration over all records
+    # ISSUES
+    ''' This one is more complex because multiple issues can be listed per record
+    Method used is complex, but hopefully faster than simple iteration over all records
+    '''
     df7.fillna(value={'issues': ""}, inplace=True)
     unique_issue = list(df7['issues'].unique())
     violations = [x for x in unique_issue if len(set(str(x).split(";")) & set(filt_issues)) != 0] # entries that contain violations
@@ -905,8 +855,8 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
     df8 = df7[df7['issues'].isin(violations) == False] # Records without entries that are violations.
     del df7
     print("Performed post-request filtering: " + str(datetime.now() - fiddlertime))
-
     newstime = datetime.now()
+
     # Create any new columns needed
     df8["remarks"] = df8['locality'] + ";" + df8['eventRemarks'] + ";" + df8['locationRemarks'] + ";" + df8['occurrenceRemarks']
     df8["species_id"] = species_id
@@ -922,7 +872,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
     df8.drop(labels=["scientificName", "eventRemarks", "locality",
                      "locationRemarks", "institutionID", "occurrenceRemarks"],
                      inplace=True, axis=1)
-
     print("Calculated new columns, deleted some too: " + str(datetime.now() - newstime))
 
     ###################################################  INSERT INTO DB (big)
@@ -950,7 +899,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
     sql_toad = '''SELECT AddGeometryColumn('occurrences', 'geom_xy4326', 4326,
                                     'POINT', 'XY');'''
     cursor.execute(sql_toad)
-
     print("Inserted records into table: " + str(datetime.now() - biggin))
 
     ################################## SUMMARY OF VALUES KEPT (FILTER; JSON)
@@ -965,29 +913,15 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
                'remarks': set([]),
                'establishment': set([]),
                'IDqualifier': set([])}
-
-    # issues
     summary['issues'] = get_vals(df8, 'issues')
-
-    # basis or record
     summary['bases'] = get_vals(df8, 'basisOfRecord')
-
-    # institution
     summary['institutions'] = get_vals(df8, 'institutionCode')
-
-    # collections
     summary['collections'] = get_vals(df8, 'collectionCode')
-
-    # establishment means
     try:
         summary['establishment'] = get_vals(df8, 'establishmentMeans')
     except:
         summary['establishment'] = ""
-
-    # identification qualifier
     summary['IDqualifier'] = get_vals(df8, 'identificationQualifier')
-
-    # protocols
     summary['samplingProtocols'] = get_vals(df8, 'samplingProtocol')
 
     # Remove duplicates, make strings for entry into summary table of attributes
@@ -1009,7 +943,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
         print(e)
 
     ###### EVENTUALLY ADD CODE TO OVERIDE POLYGON GEOMETRY WITH FOOTPRINT
-
+    ################          USE FOOTPRINTWKT HERE
     print("Updated occurrences table geometry column: " + str(datetime.now() - inserttime2))
 
     #########################################################  HANDLE DUPLICATES
@@ -1017,7 +951,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
     OKsql = """SELECT duplicates_OK FROM gbif_filters
                    WHERE filter_id = '{0}';""".format(gbif_filter_id)
     duplicates_OK = cursor2.execute(OKsql).fetchone()[0]
-
     conn2.commit()
     conn2.close()
     del cursor2
@@ -1101,7 +1034,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
     cursor.execute("""SELECT ExportSHP('occurrences', 'polygon_4326',
                      '{0}{1}_polygons', 'utf-8');""".format(outDir,
                                                            summary_name))
-
     # Export occurrence 'points' as a shapefile (all seasons)
     cursor.execute("""SELECT ExportSHP('occurrences', 'geom_4326',
                       '{0}{1}_points', 'utf-8');""".format(outDir,
