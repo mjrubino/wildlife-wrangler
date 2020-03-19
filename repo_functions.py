@@ -430,7 +430,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
     country = get_filter('country', gbif_req_id, 'gbif_requests')
     if country == "None":
         country = None
-    poly0 = get_filter('gometry', gbif_req_id, 'gbif_requests')
+    poly0 = get_filter('geometry', gbif_req_id, 'gbif_requests')
 
     ################################################ SORT OUT GEOMETRIES
     # A geometry could also be stated for the species, assess what to do
@@ -895,9 +895,9 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
     conn.commit()
     '''
     df8.to_sql(name='occurrences', con = conn, if_exists='replace',
-               chunksize=1000)
+               chunksize=2000)
     sql_toad = '''SELECT AddGeometryColumn('occurrences', 'geom_xy4326', 4326,
-                                    'POINT', 'XY');'''
+                                           'POINT', 'XY');'''
     cursor.execute(sql_toad)
     print("Inserted records into table: " + str(datetime.now() - biggin))
 
@@ -954,10 +954,10 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
     conn2.commit()
     conn2.close()
     del cursor2
-
+    df8.to_csv('T:/temp/df8.csv')  #############################################  DELETE AFTER DEV
     if duplicates_OK == "False":
         duptime1 = datetime.now()
-
+        '''
         # Get a count of duplicates to report
         sql_dupcnt = """SELECT count(occ_id)
                         FROM occurrences
@@ -981,7 +981,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
         duptime2 = datetime.now()
         print("Removed duplicates: " + str(duptime2 - duptime1))
         print("\t{0} duplicates were deleted".format(dupcount))
-
+        '''
     if duplicates_OK == "True":
         print("DUPLICATES ON LATITUDE, LONGITUDE, DATE-TIME INCLUDED")
 
