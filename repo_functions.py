@@ -567,9 +567,12 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
                            "decimalLongitude": "longitude",
                            "eventDate": "occurrenceDate"}, inplace=True, axis='columns')
         df0.drop(["issue", "id"], inplace=True, axis=1)
-        df0['coordinateUncertaintyInMeters'].replace(to_replace="UNKNOWN", value=None, inplace=True)
-        df0 = df0.astype({'coordinateUncertaintyInMeters': 'float'})
-        df0['individualCount'].replace(to_replace="UNKNOWN", value=1, inplace=True)
+        df0['coordinateUncertaintyInMeters'].replace(to_replace="UNKNOWN", 
+                                                     value=None, inplace=True)
+        df0 = df0.astype({'coordinateUncertaintyInMeters': 'float',
+                          'latitude': 'string', 'longitude': 'string'})
+        df0['individualCount'].replace(to_replace="UNKNOWN", value=1, 
+                                       inplace=True)
 
 
         #df0.set_index(['occ_id'], inplace=True, drop=False)
