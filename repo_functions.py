@@ -251,6 +251,149 @@ def getGBIFcode(name, rank='species'):
     key = species.name_backbone(name = name, rank='species')['usageKey']
     return key
 
+def drop_duplicates_latlongdate(df):
+    '''
+    Function to find and remove duplicate occurrence records within the 
+    wildlife wrangler workflow.  When duplicates exist, the record with the
+    higher decimal precision is kept, and if precisions are equal, then the 
+    record with the higher individualCount is retained. Accounts for existence 
+    of records with a mix of decimal precision in latitude and longitude 
+    values. The process is a little complex.
+    
+    The first df is cleaned up by dropping duplicates based on which 
+    record has greater individual count.  Before doing that, records with unequal
+    decimal precision in the lat and long fields and those fields are truncated
+    to the shorter precision present.
+    
+    An input df likely contains records with equal decimal precision in lat and 
+    long fields, but that is lower than the rest (i.e. lat and long have 3 places
+    right of the decimal whereas most records have 4).  Duplication may occur
+    between lower and higher precision records at the lower precision.  Therefore,
+    duplication must be assessed at each of the lower precision levels present.  
+    The strategy for that is to, at each precision level, split the main df in two:
+    one with records having the precision level of the investigation and another 
+    with records greater than the precision level. The "greater than" df records'
+    lat and long values are then truncated to the precision level.  Records are 
+    identified from the "equals precision" df that have their lat, long, and date
+    values represented in the "greater than" df, and such records id's are
+    collected in a list of records to remove from the input/main df.  This process
+    is iterated over all precision levels present in the data.
+
+    Parameters
+    ----------
+    df : Input pandas dataframe.
+
+    Returns
+    -------
+    df2 : A dataframe equal to df but without duplicates.  Use to drop records 
+    from the occurrences table.
+    
+    '''
+    from datetime import datetime
+    import pandas as pd
+    startduptime = datetime.now()
+
+    # Record df length before removing duplicates
+    initial_length = len(df)
+    
+    """
+    ############ RECTIFY UNEQUAL LAT-LONG PRECISION
+    First, trim decimal length in cases where demical length differs between
+    lat and long, result is equal lat and long length.  Record the trimmed
+    decimal precision in a temp column for use later as a record to "native"
+    precision.
+    """
+    df['dup_latPlaces'] = [len(x.split(".")[1]) for x in df['latitude']]
+    df['dup_lonPlaces'] = [len(x.split(".")[1]) for x in df['longitude']]
+    df['dup_OGprec'] = df['dup_latPlaces']
+    df22 = df[df['dup_latPlaces'] != df['dup_lonPlaces']]
+    for i in df22.index:
+        x = df22.loc[i]
+        if x['dup_latPlaces'] < x['dup_lonPlaces']:
+            trim_len = int(x['dup_latPlaces'])
+        else:
+            trim_len = int(x['dup_lonPlaces'])
+        df.loc[i, 'latitude'] = x['latitude'][:trim_len + 3]
+        df.loc[i, 'longitude'] = x['longitude'][:trim_len + 4]
+        # Record the resulting precision for reference later
+        df.loc[i, 'dup_OGprec'] = trim_len
+    df.drop(['dup_latPlaces', 'dup_lonPlaces'], axis=1, inplace=True)
+    
+    """
+    ########  INITIAL DROP OF DUPLICATES
+    Initial drop of duplicates on 'latitude', 'longitude', 'occurrenceDate', 
+    keeping the first (highest individual count)
+    Sort so that the highest individual count is first ############ ADD OCCURRENCEDATE BACK IN
+    """
+    df.sort_values(by=['latitude', 'longitude', 'occurrenceDate',
+                        'individualCount'],
+                    ascending=False, inplace=True, kind='mergesort', 
+                    na_position='last')
+    
+    df.drop_duplicates(subset=['latitude', 'longitude', 'occurrenceDate'], 
+                       keep='first', inplace=True)
+    
+    """
+    #########  FIND IMPRECISE DUPLICATES
+    Get a list of "native" precisions that are present in the data to loop through.
+    Next, iterate through this list collecting id's of records that need to be 
+    removed from the main df.
+    """
+    # Get list of unique precisions.  Order is important: descending.
+    precisions = list(set(df['dup_OGprec']))
+    precisions.sort(reverse=True)
+    # The highest precisions listed at this point has already been done: drop it.
+    precisions = precisions[1:]
+    
+    # List for collecting records that are duplicates
+    duplis = []
+    
+    # The precision-specific duplicate testing happens repeatedly, so make it a 
+    # function.  
+    def drop_duplicates(precision, df):
+        """
+        Function to find undesirable duplicates at a particular decimal precision. 
+        
+        Parameters
+        ----------
+        precision : The level of precision (places right of decimal) in lat and long
+                     for the assessment of duplicates.
+        df : dataframe to assess and drop duplicates from.  This function works
+              'inplace'.
+        """
+        # Create a df with records from the input df having decimal precision > the
+        # precision level being assessed.
+        dfLonger = df[df['dup_OGprec'] > precision].copy()
+        # Truncate lat and long values
+        dfLonger['latitude'] = [x[:precision + 3] for x in dfLonger['latitude']]
+        dfLonger['longitude'] = [x[:precision + 4] for x in dfLonger['longitude']]
+        
+        # Create a df with records having the precision being 
+        # investigated
+        dfShorter1 = df[df['dup_OGprec'] == precision]
+    
+        # Find records in dfShorter1 with lat, lon, date combo 
+        # existing in dfLonger and append to list of duplis
+        dfduplis = pd.merge(dfShorter1, dfLonger, how='inner', 
+                            on=['latitude', 'longitude', 'occurrenceDate'])
+        dups_ids = dfduplis['occ_id_x']
+        for d in dups_ids:
+            duplis.append(d)
+            
+    # Drop lat long duplicates at lower decimal precisions
+    for p in precisions:
+        drop_duplicates(p, df)
+      
+    # Drop rows from the current main df that have been identified as duplicates.
+    df2 = df[df['occ_id'].isin(duplis) == False].copy()
+    
+    # Drop excess columns
+    df2.drop(['dup_OGprec'], inplace=True, axis=1)
+    
+    duptime = datetime.now() - startduptime
+    print(str(initial_length - len(df2)) + " duplicate records dropped: {0}".format(duptime))
+    return df2
+
 def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
                               gbif_req_id, gbif_filter_id, default_coordUncertainty,
                               outDir, summary_name, username, password, email):
@@ -877,89 +1020,19 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
                      inplace=True, axis=1)
     print("Calculated new columns, deleted some too: " + str(datetime.now() - newstime))
 
-    ###################################################  INSERT INTO DB (big)
-    ########################################################################
-    biggin = datetime.now()
-    '''
-    sql1 = """INSERT INTO occurrences ('occ_id', 'species_id', 'source',
-                                       'latitude', 'longitude',
-                                       'coordinateUncertaintyInMeters',
-                                       'occurrenceDate', 'request_id',
-                                       'filter_id', 'generalizations',
-                                       'remarks')
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);"""
-    for x in df8.index:
-        insert2 = [df8.loc[x,"id"], species_id, df8.loc[x,"source"],
-                   df8.loc[x,"decimalLatitude"], df8.loc[x,"decimalLongitude"],
-                   df8.loc[x,"coordinateUncertaintyInMeters"],
-                   df8.loc[x,"eventDate"], request_id, filter_id,
-                   df8.loc[x,"dataGeneralizations"], df8.loc[x,"remarks"]]
-        cursor.execute(sql1, [(insert2)])
-    conn.commit()
-    '''
-    df8.to_sql(name='occurrences', con = conn, if_exists='replace',
-               chunksize=2000)
-    sql_toad = '''SELECT AddGeometryColumn('occurrences', 'geom_xy4326', 4326,
-                                           'POINT', 'XY');'''
-    cursor.execute(sql_toad)
-    print("Inserted records into table: " + str(datetime.now() - biggin))
-
-    ################################## SUMMARY OF VALUES KEPT (FILTER; JSON)
-    ########################################################################
-    kepttime = datetime.now()
-    summary = {'datums': ['WGS84'],
-               'issues': set([]),
-               'bases': [],
-               'institutions': [],
-               'collections': [],
-               'generalizations': set([]),
-               'remarks': set([]),
-               'establishment': set([]),
-               'IDqualifier': set([])}
-    summary['issues'] = get_vals(df8, 'issues')
-    summary['bases'] = get_vals(df8, 'basisOfRecord')
-    summary['institutions'] = get_vals(df8, 'institutionCode')
-    summary['collections'] = get_vals(df8, 'collectionCode')
-    try:
-        summary['establishment'] = get_vals(df8, 'establishmentMeans')
-    except:
-        summary['establishment'] = ""
-    summary['IDqualifier'] = get_vals(df8, 'identificationQualifier')
-    summary['samplingProtocols'] = get_vals(df8, 'samplingProtocol')
-
-    # Remove duplicates, make strings for entry into summary table of attributes
-    for x in summary.keys():
-        vals = str(list(set(summary[x]))).replace('"', '')
-        stmt = """INSERT INTO unique_values (step, field, vals)
-                  VALUES ("filter", "{0}", "{1}");""".format(x, vals)
-        cursor.execute(stmt)
-    print("Summarized unique values retained: " + str(datetime.now() - kepttime))
-
-    ################################################  MAKE POINT GEOMETRY COLUMN
-    ############################################################################
-    inserttime2 = datetime.now()
-    try:
-        sql2 = """UPDATE occurrences
-                  SET geom_xy4326 = GeomFromText('POINT('||"longitude"||' '||"latitude"||')', 4326);"""
-        cursor.execute(sql2)
-    except Exception as e:
-        print(e)
-
-    ###### EVENTUALLY ADD CODE TO OVERIDE POLYGON GEOMETRY WITH FOOTPRINT
-    ################          USE FOOTPRINTWKT HERE
-    print("Updated occurrences table geometry column: " + str(datetime.now() - inserttime2))
 
     #########################################################  HANDLE DUPLICATES
     ############################################################################
+    # Find out whether or not to drop duplicates.
     OKsql = """SELECT duplicates_OK FROM gbif_filters
                    WHERE filter_id = '{0}';""".format(gbif_filter_id)
     duplicates_OK = cursor2.execute(OKsql).fetchone()[0]
     conn2.commit()
     conn2.close()
     del cursor2
-    df8.to_csv('T:/temp/df8.csv')  #############################################  DELETE AFTER DEV
+    
     if duplicates_OK == "False":
-        duptime1 = datetime.now()
+        df9 = drop_duplicates_latlongdate(df8)
         '''
         # Get a count of duplicates to report
         sql_dupcnt = """SELECT count(occ_id)
@@ -986,8 +1059,83 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
         print("\t{0} duplicates were deleted".format(dupcount))
         '''
     if duplicates_OK == "True":
+        df9 = df8.copy()
         print("DUPLICATES ON LATITUDE, LONGITUDE, DATE-TIME INCLUDED")
 
+
+    ###################################################  INSERT INTO DB (big)
+    ########################################################################
+    biggin = datetime.now()
+    '''
+    sql1 = """INSERT INTO occurrences ('occ_id', 'species_id', 'source',
+                                       'latitude', 'longitude',
+                                       'coordinateUncertaintyInMeters',
+                                       'occurrenceDate', 'request_id',
+                                       'filter_id', 'generalizations',
+                                       'remarks')
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);"""
+    for x in df9.index:
+        insert2 = [df9.loc[x,"id"], species_id, df9.loc[x,"source"],
+                   df9.loc[x,"decimalLatitude"], df9.loc[x,"decimalLongitude"],
+                   df9.loc[x,"coordinateUncertaintyInMeters"],
+                   df9.loc[x,"eventDate"], request_id, filter_id,
+                   df9.loc[x,"dataGeneralizations"], df9.loc[x,"remarks"]]
+        cursor.execute(sql1, [(insert2)])
+    conn.commit()
+    '''
+    df9.to_sql(name='occurrences', con = conn, if_exists='replace',
+               chunksize=2000)
+    sql_toad = '''SELECT AddGeometryColumn('occurrences', 'geom_xy4326', 4326,
+                                           'POINT', 'XY');'''
+    cursor.execute(sql_toad)
+    print("Inserted records into table: " + str(datetime.now() - biggin))
+    
+    
+    ################################## SUMMARY OF VALUES KEPT (FILTER; JSON)
+    ########################################################################
+    kepttime = datetime.now()
+    summary = {'datums': ['WGS84'],
+               'issues': set([]),
+               'bases': [],
+               'institutions': [],
+               'collections': [],
+               'generalizations': set([]),
+               'remarks': set([]),
+               'establishment': set([]),
+               'IDqualifier': set([])}
+    summary['issues'] = get_vals(df9, 'issues')
+    summary['bases'] = get_vals(df9, 'basisOfRecord')
+    summary['institutions'] = get_vals(df9, 'institutionCode')
+    summary['collections'] = get_vals(df9, 'collectionCode')
+    try:
+        summary['establishment'] = get_vals(df9, 'establishmentMeans')
+    except:
+        summary['establishment'] = ""
+    summary['IDqualifier'] = get_vals(df9, 'identificationQualifier')
+    summary['samplingProtocols'] = get_vals(df9, 'samplingProtocol')
+
+    # Remove duplicates, make strings for entry into summary table of attributes
+    for x in summary.keys():
+        vals = str(list(set(summary[x]))).replace('"', '')
+        stmt = """INSERT INTO unique_values (step, field, vals)
+                  VALUES ("filter", "{0}", "{1}");""".format(x, vals)
+        cursor.execute(stmt)
+    print("Summarized unique values retained: " + str(datetime.now() - kepttime))
+
+
+    ################################################  MAKE POINT GEOMETRY COLUMN
+    ############################################################################
+    inserttime2 = datetime.now()
+    try:
+        sql2 = """UPDATE occurrences
+                  SET geom_xy4326 = GeomFromText('POINT('||"longitude"||' '||"latitude"||')', 4326);"""
+        cursor.execute(sql2)
+    except Exception as e:
+        print(e)
+
+    ###### EVENTUALLY ADD CODE TO OVERIDE POLYGON GEOMETRY WITH FOOTPRINT
+    ################          USE FOOTPRINTWKT HERE
+    print("Updated occurrences table geometry column: " + str(datetime.now() - inserttime2))
 
     #############################################################  BUFFER POINTS
     ############################################################################
