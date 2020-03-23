@@ -253,27 +253,27 @@ def getGBIFcode(name, rank='species'):
 
 def drop_duplicates_latlongdate(df):
     '''
-    Function to find and remove duplicate occurrence records within the 
+    Function to find and remove duplicate occurrence records within the
     wildlife wrangler workflow.  When duplicates exist, the record with the
-    higher decimal precision is kept, and if precisions are equal, then the 
-    record with the higher individualCount is retained. Accounts for existence 
-    of records with a mix of decimal precision in latitude and longitude 
+    higher decimal precision is kept, and if precisions are equal, then the
+    record with the higher individualCount is retained. Accounts for existence
+    of records with a mix of decimal precision in latitude and longitude
     values. The process is a little complex.
-    
-    The first df is cleaned up by dropping duplicates based on which 
+
+    The first df is cleaned up by dropping duplicates based on which
     record has greater individual count.  Before doing that, records with unequal
     decimal precision in the lat and long fields and those fields are truncated
     to the shorter precision present.
-    
-    An input df likely contains records with equal decimal precision in lat and 
+
+    An input df likely contains records with equal decimal precision in lat and
     long fields, but that is lower than the rest (i.e. lat and long have 3 places
     right of the decimal whereas most records have 4).  Duplication may occur
     between lower and higher precision records at the lower precision.  Therefore,
-    duplication must be assessed at each of the lower precision levels present.  
+    duplication must be assessed at each of the lower precision levels present.
     The strategy for that is to, at each precision level, split the main df in two:
-    one with records having the precision level of the investigation and another 
+    one with records having the precision level of the investigation and another
     with records greater than the precision level. The "greater than" df records'
-    lat and long values are then truncated to the precision level.  Records are 
+    lat and long values are then truncated to the precision level.  Records are
     identified from the "equals precision" df that have their lat, long, and date
     values represented in the "greater than" df, and such records id's are
     collected in a list of records to remove from the input/main df.  This process
@@ -285,9 +285,9 @@ def drop_duplicates_latlongdate(df):
 
     Returns
     -------
-    df2 : A dataframe equal to df but without duplicates.  Use to drop records 
+    df2 : A dataframe equal to df but without duplicates.  Use to drop records
     from the occurrences table.
-    
+
     '''
     from datetime import datetime
     import pandas as pd
@@ -295,7 +295,7 @@ def drop_duplicates_latlongdate(df):
 
     # Record df length before removing duplicates
     initial_length = len(df)
-    
+
     """
     ############ RECTIFY UNEQUAL LAT-LONG PRECISION
     First, trim decimal length in cases where demical length differs between
@@ -318,25 +318,25 @@ def drop_duplicates_latlongdate(df):
         # Record the resulting precision for reference later
         df.loc[i, 'dup_OGprec'] = trim_len
     df.drop(['dup_latPlaces', 'dup_lonPlaces'], axis=1, inplace=True)
-    
+
     """
     ########  INITIAL DROP OF DUPLICATES
-    Initial drop of duplicates on 'latitude', 'longitude', 'occurrenceDate', 
+    Initial drop of duplicates on 'latitude', 'longitude', 'occurrenceDate',
     keeping the first (highest individual count)
     Sort so that the highest individual count is first ############ ADD OCCURRENCEDATE BACK IN
     """
     df.sort_values(by=['latitude', 'longitude', 'occurrenceDate',
                         'individualCount'],
-                    ascending=False, inplace=True, kind='mergesort', 
+                    ascending=False, inplace=True, kind='mergesort',
                     na_position='last')
-    
-    df.drop_duplicates(subset=['latitude', 'longitude', 'occurrenceDate'], 
+
+    df.drop_duplicates(subset=['latitude', 'longitude', 'occurrenceDate'],
                        keep='first', inplace=True)
-    
+
     """
     #########  FIND IMPRECISE DUPLICATES
     Get a list of "native" precisions that are present in the data to loop through.
-    Next, iterate through this list collecting id's of records that need to be 
+    Next, iterate through this list collecting id's of records that need to be
     removed from the main df.
     """
     # Get list of unique precisions.  Order is important: descending.
@@ -344,16 +344,16 @@ def drop_duplicates_latlongdate(df):
     precisions.sort(reverse=True)
     # The highest precisions listed at this point has already been done: drop it.
     precisions = precisions[1:]
-    
+
     # List for collecting records that are duplicates
     duplis = []
-    
-    # The precision-specific duplicate testing happens repeatedly, so make it a 
-    # function.  
+
+    # The precision-specific duplicate testing happens repeatedly, so make it a
+    # function.
     def drop_duplicates(precision, df):
         """
-        Function to find undesirable duplicates at a particular decimal precision. 
-        
+        Function to find undesirable duplicates at a particular decimal precision.
+
         Parameters
         ----------
         precision : The level of precision (places right of decimal) in lat and long
@@ -367,29 +367,29 @@ def drop_duplicates_latlongdate(df):
         # Truncate lat and long values
         dfLonger['latitude'] = [x[:precision + 3] for x in dfLonger['latitude']]
         dfLonger['longitude'] = [x[:precision + 4] for x in dfLonger['longitude']]
-        
-        # Create a df with records having the precision being 
+
+        # Create a df with records having the precision being
         # investigated
         dfShorter1 = df[df['dup_OGprec'] == precision]
-    
-        # Find records in dfShorter1 with lat, lon, date combo 
+
+        # Find records in dfShorter1 with lat, lon, date combo
         # existing in dfLonger and append to list of duplis
-        dfduplis = pd.merge(dfShorter1, dfLonger, how='inner', 
+        dfduplis = pd.merge(dfShorter1, dfLonger, how='inner',
                             on=['latitude', 'longitude', 'occurrenceDate'])
         dups_ids = dfduplis['occ_id_x']
         for d in dups_ids:
             duplis.append(d)
-            
+
     # Drop lat long duplicates at lower decimal precisions
     for p in precisions:
         drop_duplicates(p, df)
-      
+
     # Drop rows from the current main df that have been identified as duplicates.
     df2 = df[df['occ_id'].isin(duplis) == False].copy()
-    
+
     # Drop excess columns
     df2.drop(['dup_OGprec'], inplace=True, axis=1)
-    
+
     duptime = datetime.now() - startduptime
     print(str(initial_length - len(df2)) + " duplicate records dropped: {0}".format(duptime))
     return df2
@@ -710,11 +710,11 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
                            "decimalLongitude": "longitude",
                            "eventDate": "occurrenceDate"}, inplace=True, axis='columns')
         df0.drop(["issue", "id"], inplace=True, axis=1)
-        df0['coordinateUncertaintyInMeters'].replace(to_replace="UNKNOWN", 
+        df0['coordinateUncertaintyInMeters'].replace(to_replace="UNKNOWN",
                                                      value=None, inplace=True)
         df0 = df0.astype({'coordinateUncertaintyInMeters': 'float',
                           'latitude': 'string', 'longitude': 'string'})
-        df0['individualCount'].replace(to_replace="UNKNOWN", value=1, 
+        df0['individualCount'].replace(to_replace="UNKNOWN", value=1,
                                        inplace=True)
 
 
@@ -1030,7 +1030,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
     conn2.commit()
     conn2.close()
     del cursor2
-    
+
     if duplicates_OK == "False":
         df9 = drop_duplicates_latlongdate(df8)
         '''
@@ -1089,8 +1089,8 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
                                            'POINT', 'XY');'''
     cursor.execute(sql_toad)
     print("Inserted records into table: " + str(datetime.now() - biggin))
-    
-    
+
+
     ################################## SUMMARY OF VALUES KEPT (FILTER; JSON)
     ########################################################################
     kepttime = datetime.now()
