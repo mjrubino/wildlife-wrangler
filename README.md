@@ -89,7 +89,7 @@ On a per-species, per-query basis
 * The ENVIRONMENT.yml may not work as intended.
 
 ## Dependencies
-Python 3 and numerous packages including sqlite3 with the spatialite extension.  An environment can be created from the ENVIRONMENT.yml file included in this repository.  The sciencebasepy, python-dwca-reader, and pygbif packages must be installed with pip.
+Python 3 and numerous packages including sqlite3 with the spatialite extension.  An environment may be created from the ENVIRONMENT.yml or environment-from-history.yml (for crossing platforms) files included in this repository.  The sciencebasepy, python-dwca-reader, and pygbif packages must be installed with pip.
 
 ## Code
 All code is included in this repository.  Runtimes of discrete tasks made grouping code into separate functions preferable.  

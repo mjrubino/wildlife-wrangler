@@ -717,9 +717,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
         df0['individualCount'].replace(to_replace="UNKNOWN", value=1,
                                        inplace=True)
 
-
-        #df0.set_index(['occ_id'], inplace=True, drop=False)
-
         ############################  SUMMARY TABLE OF KEYS/FIELDS RETURNED (SMALL)
         ########################################################################
         # Count entries per atrribute(column), reformat as new df with appropriate
@@ -842,6 +839,15 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
                            "decimalLongitude": "longitude",
                            "issue": "issues",
                            "eventDate": "occurrenceDate"}, inplace=True, axis='columns')
+        df0['coordinateUncertaintyInMeters'].replace(to_replace="UNKNOWN",
+                                                     value=None, inplace=True)
+        print(df0.dtypes)
+        df0['latitude'] = df0['latitude'].astype(str)
+        df0['longitude'] = df0['longitude'].astype(str)
+        print(df0.dtypes)
+        #df0 = df0.astype({'latitude': 'string', 'longitude': 'string'})
+        df0['individualCount'].replace(to_replace="UNKNOWN", value=1,
+                                       inplace=True)
 
         #df0.to_csv("T:/temp/dfOcc.csv")
         print("Downloaded and loaded records: " + str(datetime.now() - read1))
@@ -858,6 +864,9 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
         df_populated2.index.name = 'attribute'
         df_populated2.to_sql(name='gbif_fields_returned', con=conn, if_exists='replace')
         print("Summarized fields returned: " + str(datetime.now() - feather))
+
+    ############################################# eBird would go here????/
+    ########################################################################
 
     ############################################# SUMMARY OF VALUES RETURNED
     ########################################################################
@@ -1033,31 +1042,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
 
     if duplicates_OK == "False":
         df9 = drop_duplicates_latlongdate(df8)
-        '''
-        # Get a count of duplicates to report
-        sql_dupcnt = """SELECT count(occ_id)
-                        FROM occurrences
-                        WHERE occ_id NOT IN
-                            (SELECT occ_id
-                             FROM occurrences
-                             GROUP BY latitude, longitude, occurrenceDate
-                             HAVING max(individualCount));"""
-        dupcount = cursor.execute(sql_dupcnt).fetchone()[0]
 
-        # Delete duplicate records without the highest individualCount among duplicates.
-        sql_deldup = """DELETE
-                        FROM occurrences
-                        WHERE occ_id NOT IN
-                            (SELECT occ_id
-                             FROM occurrences
-                             GROUP BY latitude, longitude, occurrenceDate
-                             HAVING max(individualCount));"""
-        cursor.execute(sql_deldup)
-
-        duptime2 = datetime.now()
-        print("Removed duplicates: " + str(duptime2 - duptime1))
-        print("\t{0} duplicates were deleted".format(dupcount))
-        '''
     if duplicates_OK == "True":
         df9 = df8.copy()
         print("DUPLICATES ON LATITUDE, LONGITUDE, DATE-TIME INCLUDED")
@@ -1066,7 +1051,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
     ###################################################  INSERT INTO DB (big)
     ########################################################################
     biggin = datetime.now()
-    '''
+    '''  # This is an alternate way to insert records
     sql1 = """INSERT INTO occurrences ('occ_id', 'species_id', 'source',
                                        'latitude', 'longitude',
                                        'coordinateUncertaintyInMeters',
