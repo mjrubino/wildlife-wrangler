@@ -86,10 +86,14 @@ On a per-species, per-query basis
 * Setup of spatialite can be difficult.
 * Thorough and accurate specification of species concepts is difficult and very time-consuming.
 * Processing speed is limited in some cases by lack of spatial indexing, because setup of spatialite with spatial indexing enabled is very difficult.
-* The ENVIRONMENT.yml may not work as intended.
 
 ## Dependencies
-Python 3 and numerous packages including sqlite3 with the spatialite extension.  An environment may be created from the ENVIRONMENT.yml or environment-from-history.yml (for crossing platforms) files included in this repository.  The sciencebasepy, python-dwca-reader, and pygbif packages must be installed with pip.
+Python 3 and numerous packages including sqlite3 with the spatialite extension are needed.  Running the following code in a conda shell should create a suitable environment named "wrangler":
+1. "conda create -n wrangler python=3.6 pandas jupyter basemap-data-hires notebook numpy shapely"
+2. "conda activate wrangler"
+3. "pip install pygbif python-dwca-reader sciencebasepy"
+
+See the included spatialite install notes for how to install spatialite on windows 10.  
 
 ## Code
 All code is included in this repository.  Runtimes of discrete tasks made grouping code into separate functions preferable.  
