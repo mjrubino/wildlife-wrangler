@@ -997,14 +997,16 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
     del df4
     df7 = df5[df5['samplingProtocol'].isin(filt_sampling) == False]
     del df5
-    # ISSUES
-    ''' This one is more complex because multiple issues can be listed per record
+    ''' ISSUES are more complex because multiple issues can be listed per record
     Method used is complex, but hopefully faster than simple iteration over all records
     '''
     df7.fillna(value={'issues': ""}, inplace=True)
+    # Format of issues entries differ by method, change json format to email format
+    if occ_count < 100000:
+        df7['issues'] = [x.replace(', ', ';').replace('[', '').replace(']', '').replace("'", "")
+                        for x in df7['issues']]
     unique_issue = list(df7['issues'].unique())
     violations = [x for x in unique_issue if len(set(str(x).split(";")) & set(filt_issues)) != 0] # entries that contain violations
-
     df8 = df7[df7['issues'].isin(violations) == False] # Records without entries that are violations.
     del df7
     print("Performed post-request filtering: " + str(datetime.now() - fiddlertime))
