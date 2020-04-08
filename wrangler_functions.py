@@ -394,7 +394,7 @@ def drop_duplicates_latlongdate(df):
     print(str(initial_length - len(df2)) + " duplicate records dropped: {0}".format(duptime))
     return df2
 
-def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
+def retrieve_gbif_occurrences(codeDir, species_id, paramdb, spdb,
                               gbif_req_id, gbif_filter_id, default_coordUncertainty,
                               outDir, summary_name, username, password, email):
     """
@@ -406,7 +406,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
     Arguments:
     codeDir -- directory of this code repo.
     species_id -- project id for the species concept.
-    inDir -- directory containing key inputs such as downloaded gap ranges.
     paramdb -- path to the parameter database.
     spdb -- occurrence record database to be created by this function.
     gbif_req_id -- GBIF request ID for the process.
@@ -818,7 +817,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
         gotit = None
         while gotit is None:
             try:
-                zipdownload = occurrences.download_get(key=dkey, path=inDir)
+                zipdownload = occurrences.download_get(key=dkey, path=outDir)
                 gotit = 1
             except:
                 pass
@@ -826,7 +825,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
 
         # Read the "occurrence.txt" file into a Pandas dataframe
         read1 = datetime.now()
-        with DwCAReader(inDir + dkey + '.zip') as dwca:
+        with DwCAReader(outDir + dkey + '.zip') as dwca:
             dfRaw = dwca.pd_read('occurrence.txt', low_memory=False)#, usecols=keeper_keys)
 
         df0 = dfRaw.filter(items=keeper_keys, axis=1)
@@ -1130,7 +1129,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
     # the sum of detectiondistance from requests.species_concepts and
     # coordinate uncertainty in meters here.
     buffertime1 = datetime.now()
-    #requestsDB = inDir + 'requests.sqlite'  #####???????????????????????????????????????
     sql_det = """
             UPDATE occurrences
             SET detection_distance = {0};
