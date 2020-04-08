@@ -251,6 +251,16 @@ def getGBIFcode(name, rank='species'):
     key = species.name_backbone(name = name, rank='species')['usageKey']
     return key
 
+def getRecordDetails(key):
+    """
+    Returns a dictionary holding all GBIF details about the record.
+
+    Example: details = getRecordDetails(key = 1265907957)
+    """
+    from pygbif import occurrences
+    details = occurrences.get(key = key)
+    return details
+
 def drop_duplicates_latlongdate(df):
     '''
     Function to find and remove duplicate occurrence records within the
