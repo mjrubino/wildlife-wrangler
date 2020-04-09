@@ -404,6 +404,81 @@ def drop_duplicates_latlongdate(df):
     print(str(initial_length - len(df2)) + " duplicate records dropped: {0}".format(duptime))
     return df2
 
+def exportSHP(database, table, column, outFile):
+    '''
+    Exports a spatialite geometry column as a shapefile.
+
+    Parameters:
+    database -- the sqlite database to use.  Must have spatial data.
+    table -- name of the table with geometry in it.
+    column -- column name of the geometry to export as a shapefile.
+    outFile -- Path (and name) of the file to be created.
+    '''
+    exporttime1 = datetime.now()
+    conn = sqlite3.connect(database, isolation_level='DEFERRED')
+    conn.enable_load_extension(True)
+    conn.execute('SELECT load_extension("mod_spatialite")')
+    cursor = conn.cursor()
+    cursor.execute("""SELECT ExportSHP('{0}', '{1}', '{2}',
+                    'utf-8');""".format(table, column, outFile))
+    conn.commit()
+    conn.close()
+    print("Exported shapefile: " + str(datetime.now() - exporttime1))
+
+def ccw_wkt_from_shp(shapefile, out_txt):
+    """
+    Creates wkt with coordinates oriented counter clockwise for a given shapefile.
+    Shapefiles are oriented clockwise, which is incompatible with spatial queries
+    in many database management systems.  Use this to generate wkt that you can
+    copy and paste into queries.
+
+    (str, str) = text written to shpefile
+
+    Arguments:
+    shapefile -- path to the shpefile to read.
+    out_txt -- path to the text file to write the wkt to.
+    """
+
+    import fiona
+    import shapely
+    from shapely.geometry import shape, Polygon, LinearRing
+    #from shapely.wkb import dumps, loads
+
+    # Read in a shapefile of polygon of interest.  It must be in CRS 4326
+    # First get a fiona collection
+    c = fiona.open(shapefile, 'r')
+
+    if c.crs['init'] == 'epsg:4326':
+        # Next make it a shapely polygon object
+        poly = shape(c[0]['geometry'])
+
+        # Use LinearRing to determine if coordinates are listed clockwise
+        coords = c[0]["geometry"]["coordinates"][0]
+        lr = LinearRing(coords)
+        if lr.is_ccw == False:
+            # Reverse coordinates to make them counter clockwise
+            print("Points were clockwise......reversing")
+            #coords.reverse()
+            # Make the polygon's outer ring counter clockwise
+            poly2 = shapely.geometry.polygon.orient(poly, sign=1.0)
+            # Get the well-known text version of the polygon
+            wkt = poly2.wkt
+        else:
+            print("Points were already counter clockwise")
+            # Get the well-known text version of the polygon
+            wkt = poly.wkt
+
+        # Write WKT to text file
+        with open(out_txt, 'w+') as file:
+            file.write(wkt)
+            print("WKT written to {0}".format(out_txt))
+
+        # close the collections
+        c.close()
+    else:
+        print("You need to reproject the shapefile to EPSG:4326")
+    return
+
 def retrieve_gbif_occurrences(codeDir, species_id, paramdb, spdb,
                               gbif_req_id, gbif_filter_id, default_coordUncertainty,
                               outDir, summary_name, username, password, email):
@@ -1177,84 +1252,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, paramdb, spdb,
         exportSHP(cursor=cursor, table='occurrences', column='polygon_4326',
                   outFile = outDir + summary_name + '_polygons')
     except:
-        print('\n Failed to create a polygon shapefile')
+        print('\n Failed to create a -polygon shapefile')
     conn.commit()
     conn.close()
     print("\nRecords saved in {0}".format(spdb))
-
-
-def exportSHP(database, table, column, outFile):
-    '''
-    Exports a spatialite geometry column as a shapefile.
-
-    Parameters:
-    database -- the sqlite database to use.  Must have spatial data.
-    table -- name of the table with geometry in it.
-    column -- column name of the geometry to export as a shapefile.
-    outFile -- Path (and name) of the file to be created.
-    '''
-    exporttime1 = datetime.now()
-    conn = sqlite3.connect(database, isolation_level='DEFERRED')
-    conn.enable_load_extension(True)
-    conn.execute('SELECT load_extension("mod_spatialite")')
-    cursor = conn.cursor()
-    cursor.execute("""SELECT ExportSHP('{0}', '{1}', '{2}',
-                    'utf-8');""".format(table, column, outFile))
-    conn.commit()
-    conn.close()
-    print("Exported shapefile: " + str(datetime.now() - exporttime1))
-
-
-def ccw_wkt_from_shp(shapefile, out_txt):
-    """
-    Creates wkt with coordinates oriented counter clockwise for a given shapefile.
-    Shapefiles are oriented clockwise, which is incompatible with spatial queries
-    in many database management systems.  Use this to generate wkt that you can
-    copy and paste into queries.
-
-    (str, str) = text written to shpefile
-
-    Arguments:
-    shapefile -- path to the shpefile to read.
-    out_txt -- path to the text file to write the wkt to.
-    """
-
-    import fiona
-    import shapely
-    from shapely.geometry import shape, Polygon, LinearRing
-    #from shapely.wkb import dumps, loads
-
-    # Read in a shapefile of polygon of interest.  It must be in CRS 4326
-    # First get a fiona collection
-    c = fiona.open(shapefile, 'r')
-
-    if c.crs['init'] == 'epsg:4326':
-        # Next make it a shapely polygon object
-        poly = shape(c[0]['geometry'])
-
-        # Use LinearRing to determine if coordinates are listed clockwise
-        coords = c[0]["geometry"]["coordinates"][0]
-        lr = LinearRing(coords)
-        if lr.is_ccw == False:
-            # Reverse coordinates to make them counter clockwise
-            print("Points were clockwise......reversing")
-            #coords.reverse()
-            # Make the polygon's outer ring counter clockwise
-            poly2 = shapely.geometry.polygon.orient(poly, sign=1.0)
-            # Get the well-known text version of the polygon
-            wkt = poly2.wkt
-        else:
-            print("Points were already counter clockwise")
-            # Get the well-known text version of the polygon
-            wkt = poly.wkt
-
-        # Write WKT to text file
-        with open(out_txt, 'w+') as file:
-            file.write(wkt)
-            print("WKT written to {0}".format(out_txt))
-
-        # close the collections
-        c.close()
-    else:
-        print("You need to reproject the shapefile to EPSG:4326")
-    return
