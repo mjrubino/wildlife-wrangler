@@ -1173,8 +1173,11 @@ def retrieve_gbif_occurrences(codeDir, species_id, paramdb, spdb,
     ###############################################################  EXPORT MAPS
     ############################################################################
     # Export occurrence circles as a shapefile (all seasons)
-    exportSHP(cursor=cursor, table='occurrences', column='polygon_4326',
-              outFile = outDir + summary_name + '_polygons')
+    try:
+        exportSHP(cursor=cursor, table='occurrences', column='polygon_4326',
+                  outFile = outDir + summary_name + '_polygons')
+    except:
+        print('\n Failed to create a polygon shapefile')
     conn.commit()
     conn.close()
     print("\nRecords saved in {0}".format(spdb))
