@@ -1170,23 +1170,37 @@ def retrieve_gbif_occurrences(codeDir, species_id, paramdb, spdb,
     cursor.executescript(sql_buf)
     print("Buffered points: " + str(datetime.now() - buffertime1))
 
-
     ###############################################################  EXPORT MAPS
     ############################################################################
-    exporttime1 = datetime.now()
     # Export occurrence circles as a shapefile (all seasons)
-    cursor.execute("""SELECT ExportSHP('occurrences', 'polygon_4326',
-                     '{0}{1}_polygons', 'utf-8');""".format(outDir,
-                                                           summary_name))
-    # Export occurrence 'points' as a shapefile (all seasons)
-    cursor.execute("""SELECT ExportSHP('occurrences', 'geom_4326',
-                      '{0}{1}_points', 'utf-8');""".format(outDir,
-                                                           summary_name))
+    exportSHP(cursor=cursor, table='occurrences', column='polygon_4326',
+              outFile = outDir + summary_name + '_polygons')
     conn.commit()
     conn.close()
-
-    print("Exported maps: " + str(datetime.now() - exporttime1))
     print("\nRecords saved in {0}".format(spdb))
+
+
+def exportSHP(database, table, column, outFile):
+    '''
+    Exports a spatialite geometry column as a shapefile.
+
+    Parameters:
+    database -- the sqlite database to use.  Must have spatial data.
+    table -- name of the table with geometry in it.
+    column -- column name of the geometry to export as a shapefile.
+    outFile -- Path (and name) of the file to be created.
+    '''
+    exporttime1 = datetime.now()
+    conn = sqlite3.connect(database, isolation_level='DEFERRED')
+    conn.enable_load_extension(True)
+    conn.execute('SELECT load_extension("mod_spatialite")')
+    cursor = conn.cursor()
+    cursor.execute("""SELECT ExportSHP('{0}', '{1}', '{2}',
+                    'utf-8');""".format(table, column, outFile))
+    conn.commit()
+    conn.close()
+    print("Exported shapefile: " + str(datetime.now() - exporttime1))
+
 
 def ccw_wkt_from_shp(shapefile, out_txt):
     """
