@@ -1,4 +1,3 @@
-# Define a function for displaying the maps that will be created.
 def MapShapefilePolygons(map_these, title):
     """
     Displays shapefiles on a simple CONUS basemap.  Maps are plotted in the order
@@ -104,7 +103,6 @@ def MapShapefilePolygons(map_these, title):
     plt.title(title, fontsize=20, pad=-40, backgroundcolor='w')
     return
 
-# Define a function for displaying the maps that will be created.  North Carolina version.
 def MapShapefilePolygons_NC(map_these, title):
     """
     Displays shapefiles on a simple CONUS basemap.  Maps are plotted in the order
@@ -414,6 +412,8 @@ def exportSHP(database, table, column, outFile):
     column -- column name of the geometry to export as a shapefile.
     outFile -- Path (and name) of the file to be created.
     '''
+    from datetime import datetime
+    import sqlite3
     exporttime1 = datetime.now()
     conn = sqlite3.connect(database, isolation_level='DEFERRED')
     conn.enable_load_extension(True)
@@ -1203,7 +1203,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, paramdb, spdb,
         print(e)
 
     ###### EVENTUALLY ADD CODE TO OVERIDE POLYGON GEOMETRY WITH FOOTPRINT
-    ################          USE FOOTPRINTWKT HERE
+    ################ USE FOOTPRINTWKT HERE
     print("Updated occurrences table geometry column: " + str(datetime.now() - inserttime2))
 
     #############################################################  BUFFER POINTS
@@ -1249,10 +1249,10 @@ def retrieve_gbif_occurrences(codeDir, species_id, paramdb, spdb,
     ############################################################################
     # Export occurrence circles as a shapefile (all seasons)
     try:
-        exportSHP(cursor=cursor, table='occurrences', column='polygon_4326',
+        exportSHP(database=spdb, table='occurrences', column='polygon_4326',
                   outFile = outDir + summary_name + '_polygons')
-    except:
-        print('\n Failed to create a -polygon shapefile')
+    except Exception as e:
+        print('\n Failed to create a point-polygon shapefile -- \n' + str(e))
     conn.commit()
     conn.close()
     print("\nRecords saved in {0}".format(spdb))
