@@ -383,6 +383,13 @@ def exportSHP(database, table, column, outFile):
     '''
     from datetime import datetime
     import sqlite3
+    import platform
+    # Environment variables need to be handled
+    if platform.system() == 'Windows':
+        os.environ['PATH'] = os.environ['PATH'] + ';' + 'C:/Spatialite'
+        os.environ['SPATIALITE_SECURITY'] = 'relaxed'
+    if platform.system() == 'Darwin':
+        os.environ['SPATIALITE_SECURITY'] = 'relaxed'
     exporttime1 = datetime.now()
     conn = sqlite3.connect(database, isolation_level='DEFERRED')
     conn.enable_load_extension(True)
@@ -488,7 +495,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, paramdb, spdb,
     import shutil
     from dwca.read import DwCAReader
     import numpy as np
-
 
     # Environment variables need to be handled
     if platform.system() == 'Windows':
