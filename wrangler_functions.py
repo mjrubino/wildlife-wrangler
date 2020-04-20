@@ -384,6 +384,7 @@ def exportSHP(database, table, column, outFile):
     from datetime import datetime
     import sqlite3
     import platform
+    import os
     # Environment variables need to be handled
     if platform.system() == 'Windows':
         os.environ['PATH'] = os.environ['PATH'] + ';' + 'C:/Spatialite'
@@ -769,8 +770,11 @@ def retrieve_gbif_occurrences(codeDir, species_id, paramdb, spdb,
                            "decimalLongitude": "longitude",
                            "eventDate": "occurrenceDate"}, inplace=True, axis='columns')
         df0.drop(["issue", "id"], inplace=True, axis=1)
+        print(df0.iloc[0]) #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        print(df0['coordinateUncertaintyInMeters'].unique()) #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         df0['coordinateUncertaintyInMeters'].replace(to_replace="UNKNOWN",
-                                                     value=None, inplace=True)
+                                                     value=np.NaN, inplace=True)
+        print(df0['coordinateUncertaintyInMeters'].unique()) #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         df0 = df0.astype({'coordinateUncertaintyInMeters': 'float',
                           'latitude': 'string', 'longitude': 'string'})
         df0['individualCount'].replace(to_replace="UNKNOWN", value=1,
