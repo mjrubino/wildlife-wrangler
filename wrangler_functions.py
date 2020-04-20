@@ -770,11 +770,8 @@ def retrieve_gbif_occurrences(codeDir, species_id, paramdb, spdb,
                            "decimalLongitude": "longitude",
                            "eventDate": "occurrenceDate"}, inplace=True, axis='columns')
         df0.drop(["issue", "id"], inplace=True, axis=1)
-        print(df0.iloc[0]) #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        print(df0['coordinateUncertaintyInMeters'].unique()) #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         df0['coordinateUncertaintyInMeters'].replace(to_replace="UNKNOWN",
                                                      value=np.NaN, inplace=True)
-        print(df0['coordinateUncertaintyInMeters'].unique()) #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         df0 = df0.astype({'coordinateUncertaintyInMeters': 'float',
                           'latitude': 'string', 'longitude': 'string'})
         df0['individualCount'].replace(to_replace="UNKNOWN", value=1,
