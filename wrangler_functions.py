@@ -1,4 +1,3 @@
-# Define a function for displaying the maps that will be created.
 def MapShapefilePolygons(map_these, title):
     """
     Displays shapefiles on a simple CONUS basemap.  Maps are plotted in the order
@@ -104,7 +103,6 @@ def MapShapefilePolygons(map_these, title):
     plt.title(title, fontsize=20, pad=-40, backgroundcolor='w')
     return
 
-# Define a function for displaying the maps that will be created.  North Carolina version.
 def MapShapefilePolygons_NC(map_these, title):
     """
     Displays shapefiles on a simple CONUS basemap.  Maps are plotted in the order
@@ -210,37 +208,6 @@ def MapShapefilePolygons_NC(map_these, title):
     plt.title(title, fontsize=20, pad=-40, backgroundcolor='w')
     return
 
-def download_GAP_range_CONUS2001v1(gap_id, toDir):
-    """
-    Downloads GAP Range CONUS 2001 v1 file and returns path to the unzipped
-    file.  NOTE: doesn't include extension in returned path so that you can
-    specify if you want csv or shp or xml when you use the path.
-    """
-    import sciencebasepy
-    import zipfile
-
-    # Connect
-    sb = sciencebasepy.SbSession()
-
-    # Search for gap range item in ScienceBase
-    gap_id = gap_id[0] + gap_id[1:5].upper() + gap_id[5]
-    item_search = '{0}_CONUS_2001v1 Range Map'.format(gap_id)
-    items = sb.find_items_by_any_text(item_search)
-
-    # Get a public item.  No need to log in.
-    rng =  items['items'][0]['id']
-    item_json = sb.get_item(rng)
-    get_files = sb.get_item_files(item_json, toDir)
-
-    # Unzip
-    rng_zip = toDir + item_json['files'][0]['name']
-    zip_ref = zipfile.ZipFile(rng_zip, 'r')
-    zip_ref.extractall(toDir)
-    zip_ref.close()
-
-    # Return path to range file without extension
-    return rng_zip.replace('.zip', '')
-
 def getGBIFcode(name, rank='species'):
     """
     Returns the GBIF species code for a scientific name.
@@ -250,6 +217,16 @@ def getGBIFcode(name, rank='species'):
     from pygbif import species
     key = species.name_backbone(name = name, rank='species')['usageKey']
     return key
+
+def getRecordDetails(key):
+    """
+    Returns a dictionary holding all GBIF details about the record.
+
+    Example: details = getRecordDetails(key = 1265907957)
+    """
+    from pygbif import occurrences
+    details = occurrences.get(key = key)
+    return details
 
 def drop_duplicates_latlongdate(df):
     '''
@@ -394,7 +371,92 @@ def drop_duplicates_latlongdate(df):
     print(str(initial_length - len(df2)) + " duplicate records dropped: {0}".format(duptime))
     return df2
 
-def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
+def exportSHP(database, table, column, outFile):
+    '''
+    Exports a spatialite geometry column as a shapefile.
+
+    Parameters:
+    database -- the sqlite database to use.  Must have spatial data.
+    table -- name of the table with geometry in it.
+    column -- column name of the geometry to export as a shapefile.
+    outFile -- Path (and name) of the file to be created.
+    '''
+    from datetime import datetime
+    import sqlite3
+    import platform
+    import os
+    # Environment variables need to be handled
+    if platform.system() == 'Windows':
+        os.environ['PATH'] = os.environ['PATH'] + ';' + 'C:/Spatialite'
+        os.environ['SPATIALITE_SECURITY'] = 'relaxed'
+    if platform.system() == 'Darwin':
+        os.environ['SPATIALITE_SECURITY'] = 'relaxed'
+    exporttime1 = datetime.now()
+    conn = sqlite3.connect(database, isolation_level='DEFERRED')
+    conn.enable_load_extension(True)
+    conn.execute('SELECT load_extension("mod_spatialite")')
+    cursor = conn.cursor()
+    cursor.execute("""SELECT ExportSHP('{0}', '{1}', '{2}',
+                    'utf-8');""".format(table, column, outFile))
+    conn.commit()
+    conn.close()
+    print("Exported shapefile: " + str(datetime.now() - exporttime1))
+
+def ccw_wkt_from_shp(shapefile, out_txt):
+    """
+    Creates wkt with coordinates oriented counter clockwise for a given shapefile.
+    Shapefiles are oriented clockwise, which is incompatible with spatial queries
+    in many database management systems.  Use this to generate wkt that you can
+    copy and paste into queries.
+
+    (str, str) = text written to shpefile
+
+    Arguments:
+    shapefile -- path to the shpefile to read.
+    out_txt -- path to the text file to write the wkt to.
+    """
+
+    import fiona
+    import shapely
+    from shapely.geometry import shape, Polygon, LinearRing
+    #from shapely.wkb import dumps, loads
+
+    # Read in a shapefile of polygon of interest.  It must be in CRS 4326
+    # First get a fiona collection
+    c = fiona.open(shapefile, 'r')
+
+    if c.crs['init'] == 'epsg:4326':
+        # Next make it a shapely polygon object
+        poly = shape(c[0]['geometry'])
+
+        # Use LinearRing to determine if coordinates are listed clockwise
+        coords = c[0]["geometry"]["coordinates"][0]
+        lr = LinearRing(coords)
+        if lr.is_ccw == False:
+            # Reverse coordinates to make them counter clockwise
+            print("Points were clockwise......reversing")
+            #coords.reverse()
+            # Make the polygon's outer ring counter clockwise
+            poly2 = shapely.geometry.polygon.orient(poly, sign=1.0)
+            # Get the well-known text version of the polygon
+            wkt = poly2.wkt
+        else:
+            print("Points were already counter clockwise")
+            # Get the well-known text version of the polygon
+            wkt = poly.wkt
+
+        # Write WKT to text file
+        with open(out_txt, 'w+') as file:
+            file.write(wkt)
+            print("WKT written to {0}".format(out_txt))
+
+        # close the collections
+        c.close()
+    else:
+        print("You need to reproject the shapefile to EPSG:4326")
+    return
+
+def retrieve_gbif_occurrences(codeDir, species_id, paramdb, spdb,
                               gbif_req_id, gbif_filter_id, default_coordUncertainty,
                               outDir, summary_name, username, password, email):
     """
@@ -406,7 +468,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
     Arguments:
     codeDir -- directory of this code repo.
     species_id -- project id for the species concept.
-    inDir -- directory containing key inputs such as downloaded gap ranges.
     paramdb -- path to the parameter database.
     spdb -- occurrence record database to be created by this function.
     gbif_req_id -- GBIF request ID for the process.
@@ -435,7 +496,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
     import shutil
     from dwca.read import DwCAReader
     import numpy as np
-
 
     # Environment variables need to be handled
     if platform.system() == 'Windows':
@@ -818,7 +878,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
         gotit = None
         while gotit is None:
             try:
-                zipdownload = occurrences.download_get(key=dkey, path=inDir)
+                zipdownload = occurrences.download_get(key=dkey, path=outDir)
                 gotit = 1
             except:
                 pass
@@ -826,7 +886,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
 
         # Read the "occurrence.txt" file into a Pandas dataframe
         read1 = datetime.now()
-        with DwCAReader(inDir + dkey + '.zip') as dwca:
+        with DwCAReader(outDir + dkey + '.zip') as dwca:
             dfRaw = dwca.pd_read('occurrence.txt', low_memory=False)#, usecols=keeper_keys)
 
         df0 = dfRaw.filter(items=keeper_keys, axis=1)
@@ -1119,7 +1179,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
         print(e)
 
     ###### EVENTUALLY ADD CODE TO OVERIDE POLYGON GEOMETRY WITH FOOTPRINT
-    ################          USE FOOTPRINTWKT HERE
+    ################ USE FOOTPRINTWKT HERE
     print("Updated occurrences table geometry column: " + str(datetime.now() - inserttime2))
 
     #############################################################  BUFFER POINTS
@@ -1130,7 +1190,6 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
     # the sum of detectiondistance from requests.species_concepts and
     # coordinate uncertainty in meters here.
     buffertime1 = datetime.now()
-    #requestsDB = inDir + 'requests.sqlite'  #####???????????????????????????????????????
     sql_det = """
             UPDATE occurrences
             SET detection_distance = {0};
@@ -1162,74 +1221,14 @@ def retrieve_gbif_occurrences(codeDir, species_id, inDir, paramdb, spdb,
     cursor.executescript(sql_buf)
     print("Buffered points: " + str(datetime.now() - buffertime1))
 
-
     ###############################################################  EXPORT MAPS
     ############################################################################
-    exporttime1 = datetime.now()
     # Export occurrence circles as a shapefile (all seasons)
-    cursor.execute("""SELECT ExportSHP('occurrences', 'polygon_4326',
-                     '{0}{1}_polygons', 'utf-8');""".format(outDir,
-                                                           summary_name))
-    # Export occurrence 'points' as a shapefile (all seasons)
-    cursor.execute("""SELECT ExportSHP('occurrences', 'geom_4326',
-                      '{0}{1}_points', 'utf-8');""".format(outDir,
-                                                           summary_name))
+    try:
+        exportSHP(database=spdb, table='occurrences', column='polygon_4326',
+                  outFile = outDir + summary_name + '_polygons')
+    except Exception as e:
+        print('\n Failed to create a point-polygon shapefile -- \n' + str(e))
     conn.commit()
     conn.close()
-
-    print("Exported maps: " + str(datetime.now() - exporttime1))
     print("\nRecords saved in {0}".format(spdb))
-
-def ccw_wkt_from_shp(shapefile, out_txt):
-    """
-    Creates wkt with coordinates oriented counter clockwise for a given shapefile.
-    Shapefiles are oriented clockwise, which is incompatible with spatial queries
-    in many database management systems.  Use this to generate wkt that you can
-    copy and paste into queries.
-
-    (str, str) = text written to shpefile
-
-    Arguments:
-    shapefile -- path to the shpefile to read.
-    out_txt -- path to the text file to write the wkt to.
-    """
-
-    import fiona
-    import shapely
-    from shapely.geometry import shape, Polygon, LinearRing
-    #from shapely.wkb import dumps, loads
-
-    # Read in a shapefile of polygon of interest.  It must be in CRS 4326
-    # First get a fiona collection
-    c = fiona.open(shapefile, 'r')
-
-    if c.crs['init'] == 'epsg:4326':
-        # Next make it a shapely polygon object
-        poly = shape(c[0]['geometry'])
-
-        # Use LinearRing to determine if coordinates are listed clockwise
-        coords = c[0]["geometry"]["coordinates"][0]
-        lr = LinearRing(coords)
-        if lr.is_ccw == False:
-            # Reverse coordinates to make them counter clockwise
-            print("Points were clockwise......reversing")
-            #coords.reverse()
-            # Make the polygon's outer ring counter clockwise
-            poly2 = shapely.geometry.polygon.orient(poly, sign=1.0)
-            # Get the well-known text version of the polygon
-            wkt = poly2.wkt
-        else:
-            print("Points were already counter clockwise")
-            # Get the well-known text version of the polygon
-            wkt = poly.wkt
-
-        # Write WKT to text file
-        with open(out_txt, 'w+') as file:
-            file.write(wkt)
-            print("WKT written to {0}".format(out_txt))
-
-        # close the collections
-        c.close()
-    else:
-        print("You need to reproject the shapefile to EPSG:4326")
-    return
