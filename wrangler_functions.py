@@ -900,7 +900,7 @@ def retrieve_gbif_occurrences(codeDir, species_id, paramdb, spdb,
                            "issue": "issues",
                            "eventDate": "occurrenceDate"}, inplace=True, axis='columns')
         df0['coordinateUncertaintyInMeters'].replace(to_replace="UNKNOWN",
-                                                     value=None, inplace=True)
+                                                     value=np.NaN, inplace=True)
         df0['latitude'] = df0['latitude'].astype(str)
         df0['longitude'] = df0['longitude'].astype(str)
         #df0 = df0.astype({'latitude': 'string', 'longitude': 'string'})
